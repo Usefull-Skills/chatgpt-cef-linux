@@ -1,0 +1,64 @@
+name: Bug report
+description: Report a reproducible defect without including private account data.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not upload cookies, authentication tokens, browser profiles, private conversations or unredacted logs.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: v0.7.1
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Startup / shutdown
+        - Tabs / navigation
+        - Window / fullscreen
+        - RTL / typography
+        - Upload / clipboard
+        - Voice / microphone
+        - Permissions / security
+        - Performance / GPU
+        - Installation / packaging
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Provide minimal deterministic steps.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Distribution, desktop/session (X11/Wayland), GPU and display setup if relevant.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed credentials, cookies, tokens, private conversation content and personal paths from this report.
+          required: true

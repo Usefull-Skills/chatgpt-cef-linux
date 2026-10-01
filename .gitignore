@@ -1,0 +1,40 @@
+# Build output
+/build/
+/build-*/
+/out/
+/dist/
+*.o
+*.a
+
+# Downloaded CEF / dependencies
+/.deps/
+/cef/
+cef_binary_*.tar.bz2
+
+# Runtime/profile data — NEVER commit
+.profile/
+cache/
+Default/
+Local State
+Cookies
+History
+Login Data*
+tabs.state
+tabs.state.tmp
+*.log
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Generated packages
+*.tar.gz
+*.zip
+*.AppImage
+*.deb
+
+# OS
+.DS_Store
+Thumbs.db

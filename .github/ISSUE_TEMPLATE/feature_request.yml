@@ -1,0 +1,35 @@
+name: Feature request
+description: Propose a new capability or improvement.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: What concrete workflow or limitation should be improved?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: target
+    attributes:
+      label: Roadmap horizon
+      options:
+        - next
+        - later
+        - research
+  - type: textarea
+    id: security
+    attributes:
+      label: Security / privacy considerations
+      description: Describe changes to permissions, profiles, network behavior, local data or sandbox boundaries.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria

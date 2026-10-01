@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+status=0
+
+printf '%s\n' '== shell syntax =='
+for f in "$ROOT"/scripts/*.sh; do
+  bash -n "$f" || status=1
+done
+
+printf '%s\n' '== source privacy/secret scan =='
+pattern='(sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|Bearer [A-Za-z0-9._-]{20,}|password[[:space:]]*[=:]|api[_-]?key[[:space:]]*[=:]|access[_-]?token[[:space:]]*[=:]|refresh[_-]?token[[:space:]]*[=:]|/home/[A-Za-z0-9._-]+/)'
+if grep -RInE "$pattern" "$ROOT/src"; then
+  printf 'Potential secret or personal absolute path found in src/.\n' >&2
+  status=1
+else
+  printf 'CLEAN\n'
+fi
+
+printf '%s\n' '== forbidden runtime data =='
+if find "$ROOT" -path "$ROOT/.git" -prune -o -type f \( -name 'Cookies' -o -name 'Login Data' -o -name 'tabs.state' -o -name 'Local State' \) -print | grep -q .; then
+  printf 'Browser runtime/profile file found in repository tree.\n' >&2
+  status=1
+else
+  printf 'CLEAN\n'
+fi
+
+printf '%s\n' '== sandbox bypass scan =='
+if grep -RIn -- '--no-sandbox' "$ROOT/src"; then
+  printf 'Source contains --no-sandbox; release rejected.\n' >&2
+  status=1
+else
+  printf 'CLEAN\n'
+fi
+
+printf '%s\n' '== cppcheck =='
+if command -v cppcheck >/dev/null 2>&1; then
+  out=$(mktemp)
+  trap 'rm -f "$out"' EXIT
+  cppcheck --enable=warning,style,performance,portability --std=c++17 --force \
+    --suppress=missingIncludeSystem --suppress=unmatchedSuppression --inline-suppr \
+    "$ROOT/src" 2>"$out" || true
+  if [[ -s "$out" ]]; then
+    cat "$out" >&2
+    status=1
+  else
+    printf 'CLEAN\n'
+  fi
+else
+  printf 'SKIP: cppcheck not installed\n'
+fi
+
+if [[ "$status" -ne 0 ]]; then
+  printf 'STATIC_QA=FAIL\n' >&2
+  exit "$status"
+fi
+printf 'STATIC_QA=PASS\n'

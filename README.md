@@ -1,0 +1,89 @@
+# ChatGPT CEF V2 for Linux
+
+A hardened, native-shell Linux client for ChatGPT built with Chromium Embedded Framework (CEF), with native multi-tab controls, Persian/Arabic RTL support, voice/media permissions scoped to ChatGPT, session restore, and a modern minimal UI.
+
+> **Unofficial project.** This software is not affiliated with or endorsed by OpenAI. It loads `https://chatgpt.com/` and uses the normal ChatGPT sign-in flow.
+
+## Release status
+
+**v0.7.1 — Release Hardening**
+
+The current release baseline has passed a clean-from-scratch build with strict warnings-as-errors, static analysis, isolated runtime tab-lifecycle self-test, staged shutdown verification, dependency checks, secret/privacy scanning, RTL/LTR acceptance, upload/clipboard/voice acceptance, and single-instance validation.
+
+## Highlights
+
+- Native CEF Views shell on Linux/X11
+- Frameless window with native tabs (up to 8)
+- `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`, `Ctrl+Shift+Tab`, `Ctrl+1..8`, `F11`
+- Atomic session URL restore
+- Single-instance relaunch handling
+- Exact-origin permission policy for `https://chatgpt.com`
+- Camera/microphone/clipboard support without broad origin grants
+- Internal ChatGPT navigation stays in-app; external links route to the system browser
+- Modern light-neutral shell with ghost controls and one accent color
+- Vazirmatn-first Persian typography with automatic RTL/LTR detection
+- Code/math isolation as LTR
+- Hardened sandbox and launcher validation model
+- No credentials or ChatGPT profile data stored in the repository
+
+## Security model
+
+The application uses Chromium's normal web isolation model and a Linux SUID sandbox. The project does **not** recommend `--no-sandbox`.
+
+Media permissions are only granted by application policy to the exact trusted ChatGPT origin. Lookalike domains are not accepted by prefix matching.
+
+Runtime browser data lives under:
+
+```text
+~/.config/chatgpt-cef-v2/
+```
+
+Do not commit or share that directory. It can contain authenticated browser state.
+
+## Build
+
+The project pins the tested CEF release:
+
+```text
+CEF 154.0.32+g682c378+chromium-154.0.8037.58
+```
+
+Quick build:
+
+```bash
+./scripts/fetch-cef.sh
+./scripts/build-release.sh
+```
+
+See [docs/BUILDING.md](docs/BUILDING.md) for prerequisites and details.
+
+## Test
+
+```bash
+./scripts/static-qa.sh
+./scripts/runtime-self-test.sh
+```
+
+Runtime self-test requires an X11 display and a correctly configured Chromium sandbox.
+
+## Install locally
+
+After building:
+
+```bash
+./scripts/install-local.sh
+```
+
+The installer copies the runtime to the user's local application directory and configures `chrome-sandbox` as `root:root` mode `4755` using `sudo`. Review the script before running it.
+
+## Architecture
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Roadmap
+
+Future work is tracked in [docs/FUTURE_FEATURES.md](docs/FUTURE_FEATURES.md) and should be mirrored as GitHub issues in the company repository.
+
+## Licensing and trademarks
+
+See [NOTICE.md](NOTICE.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Project-specific source code is not automatically granted an open-source license by this repository. Third-party components retain their original licenses.

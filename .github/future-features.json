@@ -1,0 +1,452 @@
+[
+  {
+    "id": "FF-001",
+    "title": "FF-001: Native Dark / Light / System theme",
+    "horizon": "Next — desktop fundamentals",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-001\n\n**Horizon:** Next — desktop fundamentals\n\n## Proposal\n\nAdd native shell and injected web-surface theme modes with system preference detection, persistence, and contrast validation. Do not use DOM overrides that break ChatGPT's own accessibility states.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-002",
+    "title": "FF-002: Wayland backend",
+    "horizon": "Next — desktop fundamentals",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-002\n\n**Horizon:** Next — desktop fundamentals\n\n## Proposal\n\nAdd a supported Wayland path while retaining validated X11 fallback. Cover native window controls, clipboard, file dialogs, voice, screen scaling and external-browser routing.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-003",
+    "title": "FF-003: Fractional scaling and per-monitor DPI",
+    "horizon": "Next — desktop fundamentals",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-003\n\n**Horizon:** Next — desktop fundamentals\n\n## Proposal\n\nHandle 100/125/150/175/200% scaling and monitor transitions without blurry content, incorrect hit targets or geometry drift.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-004",
+    "title": "FF-004: Tab reordering by drag and drop",
+    "horizon": "Next — desktop fundamentals",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-004\n\n**Horizon:** Next — desktop fundamentals\n\n## Proposal\n\nAllow native tabs to be reordered, persist the order, and preserve the active tab and BrowserView identity.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-005",
+    "title": "FF-005: Pinned tabs",
+    "horizon": "Next — desktop fundamentals",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-005\n\n**Horizon:** Next — desktop fundamentals\n\n## Proposal\n\nAdd compact pinned tabs with persistent state and protection from bulk-close operations.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-006",
+    "title": "FF-006: Reopen closed tab",
+    "horizon": "Next — desktop fundamentals",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-006\n\n**Horizon:** Next — desktop fundamentals\n\n## Proposal\n\nMaintain a bounded closed-tab history and expose `Ctrl+Shift+T` without storing sensitive page content.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-007",
+    "title": "FF-007: Native downloads UX",
+    "horizon": "Next — desktop fundamentals",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-007\n\n**Horizon:** Next — desktop fundamentals\n\n## Proposal\n\nExpose safe download progress, completion/open-folder actions and cancellation while retaining Chromium's download protections.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-008",
+    "title": "FF-008: File drag and drop",
+    "horizon": "Next — desktop fundamentals",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-008\n\n**Horizon:** Next — desktop fundamentals\n\n## Proposal\n\nSupport dragging files/images directly onto the ChatGPT composer, including clear visual drop-state feedback.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-009",
+    "title": "FF-009: Clipboard image paste hardening",
+    "horizon": "Next — desktop fundamentals",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-009\n\n**Horizon:** Next — desktop fundamentals\n\n## Proposal\n\nTest and improve direct image clipboard paste, large-image limits and failure feedback.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-010",
+    "title": "FF-010: First-class Linux packaging",
+    "horizon": "Next — desktop fundamentals",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-010\n\n**Horizon:** Next — desktop fundamentals\n\n## Proposal\n\nProvide `.deb`, Flatpak and AppImage release pipelines with uninstall/upgrade semantics and desktop integration.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-011",
+    "title": "FF-011: Dedicated app icon and brand-safe visual identity",
+    "horizon": "Next — desktop fundamentals",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-011\n\n**Horizon:** Next — desktop fundamentals\n\n## Proposal\n\nCreate original project artwork that does not imply official OpenAI endorsement; provide scalable SVG and Linux icon sizes.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-012",
+    "title": "FF-012: Installer / uninstaller UX",
+    "horizon": "Next — desktop fundamentals",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-012\n\n**Horizon:** Next — desktop fundamentals\n\n## Proposal\n\nProvide deterministic local/system installation, rollback, cache/profile preservation choices and complete cleanup reporting.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-013",
+    "title": "FF-013: Reproducible build verification",
+    "horizon": "Next — quality, security and release engineering",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-013\n\n**Horizon:** Next — quality, security and release engineering\n\n## Proposal\n\nMeasure deterministic build inputs/outputs, record toolchain versions, and compare binary hashes where toolchain behavior permits.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-014",
+    "title": "FF-014: SBOM generation",
+    "horizon": "Next — quality, security and release engineering",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-014\n\n**Horizon:** Next — quality, security and release engineering\n\n## Proposal\n\nGenerate SPDX or CycloneDX software bill of materials for source and binary releases, including pinned CEF/Chromium versions.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-015",
+    "title": "FF-015: Release provenance and signed checksums",
+    "horizon": "Next — quality, security and release engineering",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-015\n\n**Horizon:** Next — quality, security and release engineering\n\n## Proposal\n\nPublish machine-readable SHA-256 manifests and signed release provenance. Do not auto-trust unsigned updater metadata.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-016",
+    "title": "FF-016: Secure auto-update",
+    "horizon": "Next — quality, security and release engineering",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-016\n\n**Horizon:** Next — quality, security and release engineering\n\n## Proposal\n\nDesign signed-manifest update checking with staged download, exact hash/signature verification, rollback and explicit user control.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-017",
+    "title": "FF-017: CEF compatibility matrix and updater tooling",
+    "horizon": "Next — quality, security and release engineering",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-017\n\n**Horizon:** Next — quality, security and release engineering\n\n## Proposal\n\nTrack tested CEF/Chromium versions and automate candidate builds without silently promoting an unvalidated runtime.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-018",
+    "title": "FF-018: Permission-policy regression tests",
+    "horizon": "Next — quality, security and release engineering",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-018\n\n**Horizon:** Next — quality, security and release engineering\n\n## Proposal\n\nAutomate exact-origin tests for microphone/camera/clipboard plus negative tests for lookalike hosts and unexpected permission types.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-019",
+    "title": "FF-019: Navigation-routing regression tests",
+    "horizon": "Next — quality, security and release engineering",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-019\n\n**Horizon:** Next — quality, security and release engineering\n\n## Proposal\n\nAutomate internal ChatGPT/auth routing and external-link delegation, including malicious/ambiguous URL boundary cases.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-020",
+    "title": "FF-020: Screenshot-based visual regression tests",
+    "horizon": "Next — quality, security and release engineering",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-020\n\n**Horizon:** Next — quality, security and release engineering\n\n## Proposal\n\nCapture privacy-safe native-shell fixtures and compare geometry/theme pixels across releases and window modes.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-021",
+    "title": "FF-021: Crash/diagnostics export bundle",
+    "horizon": "Next — quality, security and release engineering",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-021\n\n**Horizon:** Next — quality, security and release engineering\n\n## Proposal\n\nCreate an opt-in, local-only diagnostics exporter that redacts cookies, tokens, conversation content and user paths by default.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-022",
+    "title": "FF-022: Automated secret/privacy release scanner",
+    "horizon": "Next — quality, security and release engineering",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-022\n\n**Horizon:** Next — quality, security and release engineering\n\n## Proposal\n\nExpand release checks for browser databases, tokens, credentials, absolute user paths, build caches and accidental screenshots.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-023",
+    "title": "FF-023: Background-tab suspension",
+    "horizon": "Later — performance and workspaces",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-023\n\n**Horizon:** Later — performance and workspaces\n\n## Proposal\n\nSuspend inactive BrowserViews after configurable inactivity while preserving recoverable tab state and avoiding message loss.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-024",
+    "title": "FF-024: Memory-pressure-aware tab unloading",
+    "horizon": "Later — performance and workspaces",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-024\n\n**Horizon:** Later — performance and workspaces\n\n## Proposal\n\nRespond to Linux memory pressure with deterministic, user-visible unloading rules and safe reload behavior.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-025",
+    "title": "FF-025: Split view",
+    "horizon": "Later — performance and workspaces",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-025\n\n**Horizon:** Later — performance and workspaces\n\n## Proposal\n\nDisplay two ChatGPT tabs side by side with focus-aware shortcuts and independently resizable panes.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-026",
+    "title": "FF-026: Multiple workspace/profile sets",
+    "horizon": "Later — performance and workspaces",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-026\n\n**Horizon:** Later — performance and workspaces\n\n## Proposal\n\nSupport explicitly separated browser profiles/workspaces without copying cookies between them. Make the active profile obvious to the user.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-027",
+    "title": "FF-027: Window placement persistence",
+    "horizon": "Later — performance and workspaces",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-027\n\n**Horizon:** Later — performance and workspaces\n\n## Proposal\n\nPersist window size/state/monitor placement safely across single- and multi-monitor setups, including disconnected monitors.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-028",
+    "title": "FF-028: Optional multi-window mode",
+    "horizon": "Later — performance and workspaces",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-028\n\n**Horizon:** Later — performance and workspaces\n\n## Proposal\n\nResearch multiple top-level windows while preserving one process/application instance and predictable session restore.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-029",
+    "title": "FF-029: Command palette",
+    "horizon": "Later — performance and workspaces",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-029\n\n**Horizon:** Later — performance and workspaces\n\n## Proposal\n\nAdd a searchable native command palette for tabs, navigation, theme, zoom and diagnostics actions.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-030",
+    "title": "FF-030: Customizable keyboard shortcuts",
+    "horizon": "Later — performance and workspaces",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-030\n\n**Horizon:** Later — performance and workspaces\n\n## Proposal\n\nAllow conflict-checked remapping with reset-to-default and import/export of non-sensitive settings.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-031",
+    "title": "FF-031: Zoom controls and per-site zoom persistence",
+    "horizon": "Later — performance and workspaces",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-031\n\n**Horizon:** Later — performance and workspaces\n\n## Proposal\n\nExpose explicit zoom controls with keyboard shortcuts and safe persistence independent of monitor DPI.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-032",
+    "title": "FF-032: System notifications",
+    "horizon": "Later — desktop integration",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-032\n\n**Horizon:** Later — desktop integration\n\n## Proposal\n\nIntegrate desktop notifications only where web/app behavior permits it safely; provide granular opt-in and quiet-mode controls.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-033",
+    "title": "FF-033: Tray integration",
+    "horizon": "Later — desktop integration",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-033\n\n**Horizon:** Later — desktop integration\n\n## Proposal\n\nOptional tray icon for show/hide, new chat and quit. Must not keep hidden microphone capture active.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-034",
+    "title": "FF-034: Unread/activity badge",
+    "horizon": "Later — desktop integration",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-034\n\n**Horizon:** Later — desktop integration\n\n## Proposal\n\nExpose a privacy-preserving activity indicator without scraping or storing conversation text.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-035",
+    "title": "FF-035: Global quick-launch shortcut",
+    "horizon": "Later — desktop integration",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-035\n\n**Horizon:** Later — desktop integration\n\n## Proposal\n\nOptional global shortcut to focus the app or start a new chat, with conflict detection and explicit enablement.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-036",
+    "title": "FF-036: External-browser routing preferences",
+    "horizon": "Later — desktop integration",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-036\n\n**Horizon:** Later — desktop integration\n\n## Proposal\n\nAllow users to choose the default browser or per-domain routing rules while keeping a strict safe default.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-037",
+    "title": "FF-037: Native audio device selector",
+    "horizon": "Later — voice, accessibility and language",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-037\n\n**Horizon:** Later — voice, accessibility and language\n\n## Proposal\n\nExpose microphone/output-device selection and test hot-plug behavior without broadening site permissions.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-038",
+    "title": "FF-038: Voice-state UX",
+    "horizon": "Later — voice, accessibility and language",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-038\n\n**Horizon:** Later — voice, accessibility and language\n\n## Proposal\n\nAdd clearer native indicators for listening/processing/end states and make it impossible to leave capture running invisibly.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-039",
+    "title": "FF-039: AT-SPI accessibility improvements",
+    "horizon": "Later — voice, accessibility and language",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-039\n\n**Horizon:** Later — voice, accessibility and language\n\n## Proposal\n\nImprove native tab/window accessibility names, keyboard focus order and screen-reader interoperability.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-040",
+    "title": "FF-040: Persian localization",
+    "horizon": "Later — voice, accessibility and language",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-040\n\n**Horizon:** Later — voice, accessibility and language\n\n## Proposal\n\nProvide Persian native-shell labels/tooltips/settings while preserving English as a selectable UI language.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-041",
+    "title": "FF-041: Arabic and Hebrew direction heuristics",
+    "horizon": "Later — voice, accessibility and language",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-041\n\n**Horizon:** Later — voice, accessibility and language\n\n## Proposal\n\nGeneralize mixed-direction handling and add regression fixtures for Arabic/Hebrew/English/numerals/code/math.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-042",
+    "title": "FF-042: RTL list/table edge-case suite",
+    "horizon": "Later — voice, accessibility and language",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-042\n\n**Horizon:** Later — voice, accessibility and language\n\n## Proposal\n\nAdd tests for nested ordered lists, punctuation, mathematical expressions, quoted English and tables inside RTL responses.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-043",
+    "title": "FF-043: Local-only performance dashboard",
+    "horizon": "Research — advanced product ideas",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-043\n\n**Horizon:** Research — advanced product ideas\n\n## Proposal\n\nOptional diagnostics page for process CPU/memory/GPU/tab state. No remote telemetry by default.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-044",
+    "title": "FF-044: Sandboxed extension points",
+    "horizon": "Research — advanced product ideas",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-044\n\n**Horizon:** Research — advanced product ideas\n\n## Proposal\n\nResearch a constrained local extension model for native UI actions without allowing arbitrary injection into authenticated ChatGPT pages.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-045",
+    "title": "FF-045: Offline settings/control center",
+    "horizon": "Research — advanced product ideas",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-045\n\n**Horizon:** Research — advanced product ideas\n\n## Proposal\n\nA small native settings view for app-only preferences that does not require or intercept ChatGPT account settings.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-046",
+    "title": "FF-046: Session export/import of non-secret layout",
+    "horizon": "Research — advanced product ideas",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-046\n\n**Horizon:** Research — advanced product ideas\n\n## Proposal\n\nExport only window/tab URL/layout preferences, explicitly excluding browser cookies, credentials and authenticated storage.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-047",
+    "title": "FF-047: Crash recovery mode",
+    "horizon": "Research — advanced product ideas",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-047\n\n**Horizon:** Research — advanced product ideas\n\n## Proposal\n\nDetect repeated startup crashes and offer a safe recovery path that disables risky optional app features without deleting the user's profile.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-048",
+    "title": "FF-048: GPU/backend compatibility modes",
+    "horizon": "Research — advanced product ideas",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-048\n\n**Horizon:** Research — advanced product ideas\n\n## Proposal\n\nMaintain validated GPU/default/software-fallback profiles for problematic drivers without globally disabling the Chromium sandbox.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-049",
+    "title": "FF-049: Automated long-chat stress suite",
+    "horizon": "Research — advanced product ideas",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-049\n\n**Horizon:** Research — advanced product ideas\n\n## Proposal\n\nBenchmark scrolling, typing, tab switching and memory behavior on very long ChatGPT conversations with reproducible local fixtures.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  },
+  {
+    "id": "FF-050",
+    "title": "FF-050: Upstream DOM compatibility monitor",
+    "horizon": "Research — advanced product ideas",
+    "labels": [
+      "enhancement"
+    ],
+    "body": "**Roadmap ID:** FF-050\n\n**Horizon:** Research — advanced product ideas\n\n## Proposal\n\nDetect when ChatGPT DOM changes invalidate optional style/RTL selectors and fail gracefully instead of applying broad selectors.\n\n## Acceptance criteria\n\n- [ ] Scope and user-visible behavior are documented.\n- [ ] Security/privacy impact is reviewed.\n- [ ] Regression tests are added or updated.\n- [ ] Release checklist passes before promotion.\n"
+  }
+]
