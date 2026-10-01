@@ -35,6 +35,10 @@ constexpr int kFullscreenButton = 21;
 constexpr int kMaximizeButton = 22;
 constexpr int kMinimizeButton = 23;
 constexpr int kCloseWindowButton = 24;
+constexpr int kCompanionButton = 25;
+constexpr int kCompanionRefreshButton = 30;
+constexpr int kCompanionRowBase = 300;
+constexpr int kCompanionWidth = 312;
 constexpr int kTabButtonBase = 1000;
 constexpr int kTabCloseBase = 2000;
 
@@ -46,12 +50,14 @@ constexpr int kAccelCloseTab = 101;
 constexpr int kAccelNextTab = 102;
 constexpr int kAccelPrevTab = 103;
 constexpr int kAccelFullscreen = 104;
+constexpr int kAccelCompanion = 105;
 constexpr int kAccelTab1 = 111;
 
 constexpr int kVKeyTab = 0x09;
 constexpr int kVKey1 = 0x31;
 constexpr int kVKeyT = 0x54;
 constexpr int kVKeyW = 0x57;
+constexpr int kVKeyC = 0x43;
 constexpr int kVKeyF11 = 0x7A;
 
 // R07 modern visual system: light neutral surfaces + a single blue accent.
@@ -167,6 +173,10 @@ class AppController::ButtonDelegateImpl : public CefButtonDelegate {
   CefSize GetPreferredSize(CefRefPtr<CefView> view) override {
     const int id = view->GetID();
     if (id == kBrandButton) return CefSize(kBrandWidth, 30);
+    if (id == kCompanionButton) return CefSize(104, 30);
+    if (id == kCompanionRefreshButton) return CefSize(kCompanionWidth - 24, 34);
+    if (id >= kCompanionRowBase && id < kCompanionRowBase + 16)
+      return CefSize(kCompanionWidth - 24, 34);
     if (id >= kTabCloseBase) return CefSize(24, 28);
     if (id >= kTabButtonBase) return CefSize(148, 28);
     if (id >= kNewTabButton && id <= kCloseWindowButton) return CefSize(32, 30);
@@ -307,6 +317,9 @@ void AppController::OnWindowCreated(CefRefPtr<CefWindow> window) {
   if (active_index >= 0 && active_index < static_cast<int>(tabs_.size()))
     SetActiveTabInternal(tabs_[active_index].id);
 
+  if (command_line && command_line->HasSwitch("companion-self-test"))
+    RunCompanionSelfTest();
+
   if (command_line && command_line->HasSwitch("self-test"))
     RunBackgroundSelfTest();
 
@@ -417,6 +430,7 @@ void AppController::BuildWindowUI() {
   window_->AddChildView(content_);
   window_layout_->SetFlexForView(content_, 1);
   BuildHeaderControls();
+  BuildCompanionPanel();
 
   std::vector<CefDraggableRegion> regions;
   regions.emplace_back(CefRect(0, 0, kBrandWidth, kHeaderHeight), true);
@@ -428,6 +442,7 @@ void AppController::BuildWindowUI() {
   window_->SetAccelerator(kAccelNextTab, kVKeyTab, false, true, false, true);
   window_->SetAccelerator(kAccelPrevTab, kVKeyTab, true, true, false, true);
   window_->SetAccelerator(kAccelFullscreen, kVKeyF11, false, false, false, true);
+  window_->SetAccelerator(kAccelCompanion, kVKeyC, true, true, false, true);
   for (int i = 0; i < 8; ++i)
     window_->SetAccelerator(kAccelTab1 + i, kVKey1 + i, false, true, false, true);
 }
@@ -457,6 +472,11 @@ void AppController::BuildHeaderControls() {
   add->SetAccessibleName("New tab");
   header_->AddChildView(add);
 
+  auto companion = make_button(kCompanionButton, "Commander", kButtonBg);
+  companion->SetTooltipText("پنل مشاهده Commander (Ctrl+Shift+C)");
+  companion->SetAccessibleName("Toggle read-only Commander companion");
+  header_->AddChildView(companion);
+
   auto full = make_button(kFullscreenButton, "⛶", kButtonBg);
   full->SetTooltipText("Fullscreen (F11)");
   full->SetAccessibleName("Toggle fullscreen");
@@ -477,6 +497,112 @@ void AppController::BuildHeaderControls() {
   close->SetTooltipText("Close");
   close->SetAccessibleName("Close application");
   header_->AddChildView(close);
+}
+
+void AppController::BuildCompanionPanel() {
+  companion_panel_ = CefPanel::CreatePanel(nullptr);
+  companion_panel_->SetBackgroundColor(kHeaderBg);
+  CefBoxLayoutSettings settings;
+  settings.horizontal = false;
+  settings.between_child_spacing = 2;
+  settings.inside_border_horizontal_spacing = 12;
+  settings.inside_border_vertical_spacing = 10;
+  settings.cross_axis_alignment = CEF_AXIS_ALIGNMENT_STRETCH;
+  companion_panel_->SetToBoxLayout(settings);
+  for (int i = 0; i < 11; ++i) {
+    auto row = CefLabelButton::CreateLabelButton(button_delegate_, "");
+    row->SetID(kCompanionRowBase + i);
+    row->SetFontList(i == 0 ? kUIBoldFont : kUIFont);
+    row->SetEnabledTextColors(kText);
+    row->SetBackgroundColor(kHeaderBg);
+    row->SetFocusable(false);
+    // This is a native display row, not an action. Full bounded details are
+    // accessible via its tooltip/name, without injecting anything into a page.
+    companion_panel_->AddChildView(row);
+    companion_rows_.push_back(row);
+  }
+  auto refresh = CefLabelButton::CreateLabelButton(button_delegate_, "تازه‌سازی مشاهده محلی");
+  refresh->SetID(kCompanionRefreshButton);
+  refresh->SetFontList(kUIFont);
+  refresh->SetEnabledTextColors(kActiveText);
+  refresh->SetBackgroundColor(kSoftAccentBg);
+  refresh->SetTooltipText("Reads private local snapshot only; no network, model or Commander operation.");
+  refresh->SetAccessibleName("Refresh read-only local observation");
+  companion_panel_->AddChildView(refresh);
+  companion_overlay_ = window_->AddOverlayView(companion_panel_, CEF_DOCKING_MODE_CUSTOM, true);
+  if (companion_overlay_ && companion_overlay_->IsValid()) companion_overlay_->SetVisible(false);
+  UpdateCompanionPanel();
+}
+
+void AppController::ToggleCompanionPanel() {
+  CEF_REQUIRE_UI_THREAD();
+  if (closing_ || !companion_overlay_ || !companion_overlay_->IsValid()) return;
+  companion_visible_ = !companion_visible_;
+  if (companion_visible_) RefreshCompanion();
+  LayoutTabOverlays();
+}
+
+void AppController::RefreshCompanion() {
+  CEF_REQUIRE_UI_THREAD();
+  if (closing_) return;
+  const std::string root = companion::ProfileRoot();
+  companion_observation_ = companion::ReadObservation(root);
+  companion_binding_ = companion::ReadNativeBinding(root);
+  UpdateCompanionPanel();
+  if (companion_visible_ && !companion_tick_scheduled_) CompanionTick();
+}
+
+void AppController::UpdateCompanionPanel() {
+  if (!companion_panel_) return;
+  std::string active_url;
+  Tab* active = FindTabById(active_tab_id_);
+  // Read the actual native main-frame URL, never a cached restored/tab title.
+  // During navigation/loading the chat binding deliberately remains unknown.
+  if (active && !active->loading && active->view && active->view->GetBrowser()) {
+    auto frame = active->view->GetBrowser()->GetMainFrame();
+    if (frame) active_url = frame->GetURL().ToString();
+  }
+  const auto rows = companion::Describe(companion_observation_, companion_binding_, active_url, companion::NowEpochMs());
+  for (size_t i = 0; i < companion_rows_.size(); ++i) {
+    const bool visible = i < rows.size();
+    companion_rows_[i]->SetVisible(visible);
+    if (!visible) continue;
+    companion_rows_[i]->SetText(Utf8Ellipsize(rows[i].text, 39, 36));
+    companion_rows_[i]->SetTooltipText(rows[i].detail);
+    companion_rows_[i]->SetAccessibleName(rows[i].text + " | " + rows[i].detail);
+  }
+  companion_panel_->Layout();
+}
+
+void AppController::CompanionTick() {
+  CEF_REQUIRE_UI_THREAD();
+  companion_tick_scheduled_ = false;
+  if (closing_ || !companion_visible_) return;
+  UpdateCompanionPanel();
+  companion_tick_scheduled_ = true;
+  // No captured controller pointer: a queued expiry tick cannot dereference a
+  // destroyed owner. It never reads files or invokes an external service.
+  CefPostDelayedTask(TID_UI, base::BindOnce([]() {
+    if (auto* controller = AppController::Get()) controller->CompanionTick();
+  }), 1000);
+}
+
+void AppController::RunCompanionSelfTest() {
+  CEF_REQUIRE_UI_THREAD();
+  ToggleCompanionPanel();
+  Tab* active = FindTabById(active_tab_id_);
+  const bool shown = companion_overlay_ && companion_overlay_->IsValid() && companion_overlay_->IsVisible();
+  const bool separate = shown && active && active->overlay && active->overlay->IsValid() &&
+    active->overlay->GetBounds().width == companion_overlay_->GetBounds().x &&
+    companion_overlay_->GetBounds().width == kCompanionWidth;
+  const bool unknown = !companion_observation_.valid && companion_observation_.error == "SNAPSHOT_MISSING" &&
+    !companion_binding_.valid && companion_rows_.size() > 1 &&
+    companion_rows_[1]->GetText().ToString().find("UNPROVEN") != std::string::npos;
+  ToggleCompanionPanel();
+  const bool hidden = companion_overlay_ && companion_overlay_->IsValid() && !companion_overlay_->IsVisible();
+  LOG(WARNING) << "CGWA_COMPANION_SELFTEST " << (shown && separate && unknown && hidden ? "PASS" : "FAIL")
+    << " native_overlay=" << shown << " separate_bounds=" << separate
+    << " missing_snapshot_unproven=" << unknown << " toggle_hidden=" << hidden;
 }
 
 void AppController::NewTab(const std::string& url) {
@@ -527,6 +653,7 @@ void AppController::SetActiveTabInternal(int tab_id) {
   }
   if (target->view) target->view->RequestFocus();
   SaveSessionState();
+  UpdateCompanionPanel();
 }
 
 void AppController::LayoutTabOverlays() {
@@ -537,10 +664,16 @@ void AppController::LayoutTabOverlays() {
   const int top = header_visible ? kHeaderHeight : 0;
   const int width = std::max(1, client_bounds.width);
   const int height = std::max(1, client_bounds.height - top);
-  const CefRect bounds(0, top, width, height);
+  const bool show_companion = companion_visible_ && !fullscreen_ && width >= kCompanionWidth + 320;
+  const int browser_width = show_companion ? width - kCompanionWidth : width;
+  const CefRect bounds(0, top, browser_width, height);
   for (auto& tab : tabs_) {
     if (tab.overlay && tab.overlay->IsValid())
       tab.overlay->SetBounds(bounds);
+  }
+  if (companion_overlay_ && companion_overlay_->IsValid()) {
+    companion_overlay_->SetBounds(CefRect(browser_width, top, kCompanionWidth, height));
+    companion_overlay_->SetVisible(show_companion);
   }
 }
 
@@ -657,6 +790,9 @@ void AppController::BeginShutdown() {
 
   SaveSessionState();
   closing_ = true;
+  companion_visible_ = false;
+  if (companion_overlay_ && companion_overlay_->IsValid()) companion_overlay_->Destroy();
+  companion_overlay_ = nullptr;
   LOG(WARNING) << "CGWA_SHUTDOWN BEGIN tabs=" << tabs_.size();
 
   std::vector<CefRefPtr<CefOverlayController>> overlays;
@@ -721,6 +857,7 @@ bool AppController::OnAccelerator(int command_id) {
   if (command_id == kAccelNextTab) { CycleTab(1); return true; }
   if (command_id == kAccelPrevTab) { CycleTab(-1); return true; }
   if (command_id == kAccelFullscreen) { ToggleFullscreen(); return true; }
+  if (command_id == kAccelCompanion) { ToggleCompanionPanel(); return true; }
   if (command_id >= kAccelTab1 && command_id < kAccelTab1 + 8) {
     const int index = command_id - kAccelTab1;
     if (index < static_cast<int>(tabs_.size())) SetActiveTabInternal(tabs_[index].id);
@@ -733,6 +870,11 @@ void AppController::OnButtonStateChanged(CefRefPtr<CefButton> button) {
   CEF_REQUIRE_UI_THREAD();
   if (!button) return;
   const int id = button->GetID();
+  if (id >= kCompanionRowBase && id < kCompanionRowBase + 16) {
+    button->SetBackgroundColor(kHeaderBg);
+    if (auto label = button->AsLabelButton()) label->SetEnabledTextColors(kText);
+    return;
+  }
   const auto state = button->GetState();
   const bool hot = state == CEF_BUTTON_STATE_HOVERED ||
                    state == CEF_BUTTON_STATE_PRESSED;
@@ -771,6 +913,8 @@ void AppController::OnButtonPressed(CefRefPtr<CefButton> button) {
   const int id = button->GetID();
   if (id == kBrandButton) return;
   if (id == kNewTabButton) { NewTab(); return; }
+  if (id == kCompanionButton) { ToggleCompanionPanel(); return; }
+  if (id == kCompanionRefreshButton) { RefreshCompanion(); return; }
   if (id == kFullscreenButton) { ToggleFullscreen(); return; }
   if (id == kMaximizeButton) { ToggleMaximize(); return; }
   if (id == kMinimizeButton) { Minimize(); return; }
@@ -928,6 +1072,7 @@ void AppController::OnLoadingStateChange(CefRefPtr<CefBrowser> browser,
   }
   UpdateTabButton(*tab);
   if (!is_loading) SaveSessionState();
+  if (tab->id == active_tab_id_) UpdateCompanionPanel();
 }
 
 bool AppController::IsChatGPTURL(const std::string& url) const {
@@ -972,6 +1117,11 @@ void AppController::OnWindowDestroyed() {
   header_ = nullptr;
   tab_strip_ = nullptr;
   content_ = nullptr;
+  companion_overlay_ = nullptr;
+  companion_panel_ = nullptr;
+  companion_rows_.clear();
+  companion_visible_ = false;
+  companion_tick_scheduled_ = false;
   window_layout_ = nullptr;
   header_layout_ = nullptr;
   tab_layout_ = nullptr;

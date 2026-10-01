@@ -1,6 +1,17 @@
 cmake_minimum_required(VERSION 3.21)
 project(chatgpt_cef_v2 LANGUAGES C CXX)
 
+# Headless contract tests do not load CEF, launch a browser, invoke a model or
+# require X11. Useful as a separate Linux CI gate before the native CEF build.
+option(CGWA_COMPANION_TESTS_ONLY "Build CEF-free companion contract tests only" OFF)
+if(CGWA_COMPANION_TESTS_ONLY)
+  enable_testing()
+  add_executable(companion-contract-test src/commander_companion.cc src/commander_companion_test.cc)
+  target_compile_features(companion-contract-test PRIVATE cxx_std_17)
+  add_test(NAME companion-contract COMMAND companion-contract-test --fixture "${CMAKE_CURRENT_SOURCE_DIR}/src/companion-emitted-fixture.json")
+  return()
+endif()
+
 if(NOT CEF_ROOT)
   if(DEFINED ENV{CEF_ROOT})
     set(CEF_ROOT "$ENV{CEF_ROOT}")
@@ -22,6 +33,8 @@ set(APP_SRCS
   src/controller.h
   src/client.cc
   src/client.h
+  src/commander_companion.cc
+  src/commander_companion.h
 )
 
 add_executable(chatgpt-cef-v2 ${APP_SRCS})

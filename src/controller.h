@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "client.h"
+#include "commander_companion.h"
 #include "include/cef_browser.h"
 #include "include/cef_client.h"
 #include "include/views/cef_box_layout.h"
@@ -88,6 +89,12 @@ class AppController {
   void UpdateTabButton(Tab& tab);
   void SetActiveTabInternal(int tab_id);
   void LayoutTabOverlays();
+  void BuildCompanionPanel();
+  void ToggleCompanionPanel();
+  void RefreshCompanion();
+  void UpdateCompanionPanel();
+  void CompanionTick();
+  void RunCompanionSelfTest();
   void SaveSessionState();
   Tab* FindTabById(int tab_id);
   Tab* FindTabByBrowser(CefRefPtr<CefBrowser> browser);
@@ -104,6 +111,11 @@ class AppController {
   CefRefPtr<CefPanel> header_;
   CefRefPtr<CefPanel> tab_strip_;
   CefRefPtr<CefPanel> content_;
+  CefRefPtr<CefPanel> companion_panel_;
+  CefRefPtr<CefOverlayController> companion_overlay_;
+  std::vector<CefRefPtr<CefLabelButton>> companion_rows_;
+  companion::Observation companion_observation_;
+  companion::NativeBinding companion_binding_;
   CefRefPtr<CefBoxLayout> window_layout_;
   CefRefPtr<CefBoxLayout> header_layout_;
   CefRefPtr<CefBoxLayout> tab_layout_;
@@ -118,6 +130,8 @@ class AppController {
   int next_tab_id_ = 1;
   int active_tab_id_ = 0;
   bool fullscreen_ = false;
+  bool companion_visible_ = false;
+  bool companion_tick_scheduled_ = false;
   bool closing_ = false;
   bool window_created_ = false;
   int self_test_tab_id_ = 0;

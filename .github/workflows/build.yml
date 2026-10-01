@@ -10,7 +10,40 @@ permissions:
   contents: read
 
 jobs:
+  companion-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build CEF-free contract gate with sanitizers
+        run: |
+          mkdir -p .qa
+          c++ --version | tee .qa/companion-compiler.out
+          cmake --version | tee .qa/companion-cmake.out
+          sha256sum src/commander_companion.cc src/commander_companion_test.cc src/companion-emitted-fixture.json | tee .qa/companion-source-sha256.out
+          cmake -S . -B build-companion -G Ninja \
+            -DCGWA_COMPANION_TESTS_ONLY=ON -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS='-Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer'
+          cmake --build build-companion -j2
+      - name: Run native contract and Linux private-file guards
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          mkdir -p .qa
+          ctest --test-dir build-companion --verbose --output-on-failure | tee .qa/companion-contract.out
+      - name: Preserve contract evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: companion-contract-evidence
+          path: .qa/companion-*.out
+          if-no-files-found: warn
+          retention-days: 7
+
   linux-release-build:
+    needs: companion-contract
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -25,7 +58,7 @@ jobs:
             libgtk-3-dev libnss3-dev libx11-dev libxcomposite-dev \
             libxdamage-dev libxext-dev libxfixes-dev libxrandr-dev \
             libgbm-dev libpango1.0-dev libcups2-dev libdrm-dev \
-            libasound2-dev fonts-vazirmatn
+            libasound2-dev fonts-vazirmatn xvfb xauth
 
       - name: Static QA
         run: ./scripts/static-qa.sh
@@ -44,7 +77,54 @@ jobs:
           fi
 
       - name: Record binary hash
-        run: sha256sum build/bin/chatgpt-cef-v2 | tee build/BINARY_SHA256.txt
+        run: |
+          sha256sum build/bin/chatgpt-cef-v2 | tee build/BINARY_SHA256.txt
+          sha256sum .deps/downloads/*.tar.bz2 | tee build/CEF_ARCHIVE_SHA256.txt
+
+      - name: Native X11 companion and lifecycle test with sandbox intact
+        run: |
+          [[ "$(id -u)" -ne 0 ]] || { echo 'Refusing root browser execution'; exit 30; }
+          companion_ci_sandbox=$(realpath build/bin/chrome-sandbox)
+          [[ "$companion_ci_sandbox" == "$GITHUB_WORKSPACE/build/bin/chrome-sandbox" ]] || { echo 'Sandbox target outside staged build'; exit 31; }
+          sudo chown root:root "$companion_ci_sandbox"
+          sudo chmod 4755 "$companion_ci_sandbox"
+          sha256sum -c build/BINARY_SHA256.txt
+          companion_ci_profile=$(mktemp -d /tmp/cgwa-companion-ci.XXXXXX)
+          [[ "$companion_ci_profile" == /tmp/cgwa-companion-ci.* && -d "$companion_ci_profile" && ! -L "$companion_ci_profile" ]] || exit 32
+          trap 'rm -rf -- "$companion_ci_profile"' EXIT
+          mkdir -p .qa
+          set +e
+          xvfb-run -a timeout 18 build/bin/chatgpt-cef-v2 \
+            --cgwa-profile-dir="$companion_ci_profile" --background-test \
+            --log-file="$companion_ci_profile/chrome_debug.log" \
+            --self-test --companion-self-test --shutdown-self-test \
+            '--host-resolver-rules=MAP * ~NOTFOUND' \
+            >.qa/companion-native-runtime.out 2>&1
+          companion_ci_rc=$?
+          set -e
+          if [[ -f "$companion_ci_profile/chrome_debug.log" ]]; then
+            cp "$companion_ci_profile/chrome_debug.log" .qa/companion-native-chrome.log
+          fi
+          [[ "$companion_ci_rc" -eq 0 ]] || { echo "NATIVE_RUNTIME_FAIL rc=$companion_ci_rc"; exit 34; }
+          [[ -f .qa/companion-native-chrome.log ]] || { echo 'Native log missing'; exit 35; }
+          grep -q 'CGWA_COMPANION_SELFTEST PASS' .qa/companion-native-chrome.log
+          grep -q 'CGWA_SELFTEST PASS' .qa/companion-native-chrome.log
+          grep -q 'CGWA_SHUTDOWN FINALIZE' .qa/companion-native-chrome.log
+          grep -q 'CGWA_SHUTDOWN WINDOW_DESTROYED' .qa/companion-native-chrome.log
+          if grep -Eq 'FATAL|GPU process isn.t usable|segfault|stack smashing|trap|CGWA_COMPANION_SELFTEST FAIL' .qa/companion-native-chrome.log; then
+            echo 'Native runtime error marker; gate failed'
+            exit 33
+          fi
+          echo 'COMPANION_NATIVE_RUNTIME=PASS (isolated unauthenticated profile; no session/tool authority claim)'
+
+      - name: Preserve native runtime evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: companion-native-runtime-evidence
+          path: .qa/
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload unsigned build artifact
         uses: actions/upload-artifact@v4
@@ -53,5 +133,6 @@ jobs:
           path: |
             build/bin/
             build/BINARY_SHA256.txt
+            build/CEF_ARCHIVE_SHA256.txt
           if-no-files-found: error
           retention-days: 7
