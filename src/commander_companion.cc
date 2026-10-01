@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <initializer_list>
 #include <map>
+#include <numeric>
 #include <regex>
 #include <set>
 #include <sstream>
@@ -169,8 +170,7 @@ class Parser {
 
 bool Keys(const Json& object, std::initializer_list<const char*> keys) {
   if (object.type != Json::Object || object.object.size() != keys.size()) return false;
-  for (const char* key : keys) if (!object.object.count(key)) return false;
-  return true;
+  return std::all_of(keys.begin(), keys.end(), [&object](const char* key) { return object.object.count(key) != 0; });
 }
 const Json& At(const Json& value, const char* key) { return value.object.at(key); }
 bool AsText(const Json& value, std::string& out, size_t cap, bool nullable = true) {
@@ -181,7 +181,7 @@ bool AsText(const Json& value, std::string& out, size_t cap, bool nullable = tru
     if (std::regex_search(value.string, sensitive)) return false;
   }
   // Reject controls, bidi overrides, and zero-width controls in displayed identity.
-  for (unsigned char c : value.string) if (c < 32 || c == 127) return false;
+  if (std::any_of(value.string.begin(), value.string.end(), [](unsigned char c) { return c < 32 || c == 127; })) return false;
   if (value.string.find("\xE2\x80\x8B") != std::string::npos ||
       value.string.find("\xE2\x80\x8E") != std::string::npos ||
       value.string.find("\xE2\x80\x8F") != std::string::npos) return false;
@@ -196,15 +196,15 @@ bool Digit(char c) { return c >= '0' && c <= '9'; }
 bool Token(const std::string& s, bool tools = false, bool extended = false) {
   if (s.empty()) return true;
   if (!(Alpha(s[0]) || (!tools && Digit(s[0])))) return false;
-  for (char c : s) if (!(Alpha(c) || Digit(c) || c == '_' || c == '.' || c == ':' || c == '-' ||
-                        (extended && (c == '@' || c == '/')))) return false;
-  return true;
+  return std::all_of(s.begin(), s.end(), [extended](char c) {
+    return Alpha(c) || Digit(c) || c == '_' || c == '.' || c == ':' || c == '-' ||
+           (extended && (c == '@' || c == '/'));
+  });
 }
 bool Identifier(const std::string& s) {
   if (s.empty()) return true;
   if (s[0] < 'a' || s[0] > 'z') return false;
-  for (char c : s) if (!((c >= 'a' && c <= 'z') || Digit(c) || c == '_' || c == '-')) return false;
-  return true;
+  return std::all_of(s.begin(), s.end(), [](char c) { return (c >= 'a' && c <= 'z') || Digit(c) || c == '_' || c == '-'; });
 }
 bool Hex(const std::string& s, size_t length) {
   if (s.empty()) return true;
@@ -228,8 +228,7 @@ bool Names(const Json& value, std::vector<std::string>& out, size_t cap, bool ex
   return true;
 }
 bool OneOf(const std::string& s, std::initializer_list<const char*> names) {
-  for (const char* name : names) if (s == name) return true;
-  return false;
+  return std::any_of(names.begin(), names.end(), [&s](const char* name) { return s == name; });
 }
 bool BindingFields(const Json& value, Binding& out) {
   if (!Keys(value, {"appId", "accountId", "profileId", "workflowId", "projectRoot", "chatUrl"})) return false;
@@ -247,8 +246,7 @@ bool Complete(const Binding& b) {
 }
 bool DeviceName(const Json& value, std::string& out) {
   if (!AsText(value, out, 512)) return false;
-  size_t characters = 0;
-  for (unsigned char c : out) if ((c & 0xC0) != 0x80) ++characters;
+  const auto characters = std::count_if(out.begin(), out.end(), [](unsigned char c) { return (c & 0xC0) != 0x80; });
   return characters <= 128;
 }
 bool SameBinding(const Binding& a, const Binding& b) {
@@ -412,16 +410,17 @@ bool DirectoryUnchanged(const std::string& root, int directory, const struct sta
 #endif
 
 std::string ReadPrivateFile(const std::string& root, const char* name, size_t cap, std::string& error) {
+#if defined(__linux__)
   const int directory = OpenPrivateDirectory(root, error);
   if (directory < 0) return {};
-#if defined(__linux__)
   struct stat before{};
   if (::fstat(directory, &before) != 0) { ::close(directory); error = "PROFILE_ROOT_UNAVAILABLE"; return {}; }
   std::string bytes = ReadPrivateAt(directory, name, cap, error);
   if (error.empty() && !DirectoryUnchanged(root, directory, before, error)) bytes.clear();
   ::close(directory); return bytes;
 #else
-  (void)name; (void)cap; return {};
+  (void)root; (void)name; (void)cap;
+  error = "LINUX_FILE_GUARD_UNAVAILABLE"; return {};
 #endif
 }
 }  // namespace
@@ -445,8 +444,9 @@ bool IsCanonicalChatUrl(const std::string& url) {
 
 bool IsCanonicalProjectRoot(const std::string& root) {
   if (root.empty() || root.size() > 16384 || !Utf8(root)) return false;
-  size_t units = 0;
-  for (unsigned char c : root) if ((c & 0xC0) != 0x80) units += c >= 0xF0 ? 2 : 1;
+  const size_t units = std::accumulate(root.begin(), root.end(), size_t{0}, [](size_t count, unsigned char c) {
+    return count + ((c & 0xC0) != 0x80 ? (c >= 0xF0 ? 2 : 1) : 0);
+  });
   if (units > 4096) return false;
   const bool windows = root.size() > 3 && Alpha(root[0]) && root[1] == ':' && root[2] == '\\';
   const char separator = windows ? '\\' : '/';
@@ -459,7 +459,9 @@ bool IsCanonicalProjectRoot(const std::string& root) {
     const size_t end = root.find(separator, position);
     const std::string part = root.substr(position, end == std::string::npos ? end : end - position);
     if (part.empty() || part == "." || part == "..") return false;
-    for (unsigned char c : part) if (c < 32 || c == 127 || (windows && (c == ':' || c == '"' || c == '<' || c == '>' || c == '|' || c == '?' || c == '*'))) return false;
+    if (std::any_of(part.begin(), part.end(), [windows](unsigned char c) {
+      return c < 32 || c == 127 || (windows && (c == ':' || c == '"' || c == '<' || c == '>' || c == '|' || c == '?' || c == '*'));
+    })) return false;
     if (windows && (part.back() == ' ' || part.back() == '.')) return false;
     if (end == std::string::npos) break;
     position = end + 1;
@@ -533,7 +535,9 @@ Observation ParseObservation(const std::string& json) {
   if (!Keys(reconciliation, {"state", "reasonCodes", "actionAllowed"}) ||
       !AsText(At(reconciliation, "state"), s.reconciliation_state, 128, false) || !OneOf(s.reconciliation_state, {"BOUND", "STOP", "UNPROVEN"}) ||
       !Names(At(reconciliation, "reasonCodes"), s.reasons, 16) || At(reconciliation, "actionAllowed").type != Json::Boolean || At(reconciliation, "actionAllowed").boolean) return s;
-  for (const auto& reason : s.reasons) if (!OneOf(reason, {"BINDING_MISSING", "APP_ID_MISSING", "ACCOUNT_ID_MISSING", "PROFILE_ID_MISSING", "WORKFLOW_ID_MISSING", "PROJECT_ROOT_MISSING", "CHAT_URL_MISSING", "APP_ID_MISMATCH", "ACCOUNT_ID_MISMATCH", "PROFILE_ID_MISMATCH", "WORKFLOW_ID_MISMATCH", "PROJECT_ROOT_MISMATCH", "CHAT_URL_MISMATCH", "CHAT_OBSERVATION_MISSING", "CHAT_OBSERVATION_STALE", "UNCERTAIN_OPERATION", "BACKEND_UNAVAILABLE", "BACKEND_MISMATCH", "WORKFLOW_UNAVAILABLE", "MACHINE_MISMATCH", "CONFIG_MISMATCH"})) return s;
+  if (std::any_of(s.reasons.begin(), s.reasons.end(), [](const std::string& reason) {
+    return !OneOf(reason, {"BINDING_MISSING", "APP_ID_MISSING", "ACCOUNT_ID_MISSING", "PROFILE_ID_MISSING", "WORKFLOW_ID_MISSING", "PROJECT_ROOT_MISSING", "CHAT_URL_MISSING", "APP_ID_MISMATCH", "ACCOUNT_ID_MISMATCH", "PROFILE_ID_MISMATCH", "WORKFLOW_ID_MISMATCH", "PROJECT_ROOT_MISMATCH", "CHAT_URL_MISMATCH", "CHAT_OBSERVATION_MISSING", "CHAT_OBSERVATION_STALE", "UNCERTAIN_OPERATION", "BACKEND_UNAVAILABLE", "BACKEND_MISMATCH", "WORKFLOW_UNAVAILABLE", "MACHINE_MISMATCH", "CONFIG_MISMATCH"});
+  })) return s;
   if ((s.reconciliation_state == "BOUND" && (!InternallyBound(s) || !s.reasons.empty())) ||
       (s.project_state == "BOUND" && s.reconciliation_state != "BOUND") ||
       (s.reconciliation_state == "STOP" && s.reasons.empty()) ||
@@ -611,11 +615,11 @@ std::vector<DisplayRow> Describe(const Observation& s, const NativeBinding& expe
 }
 
 Observation ReadObservation(const std::string& root) {
+  Observation out;
+#if defined(__linux__)
   std::string error;
   const int directory = OpenPrivateDirectory(root, error);
-  Observation out;
   if (directory < 0) { out.error = error; out.blocked = true; return out; }
-#if defined(__linux__)
   struct stat before{};
   if (::fstat(directory, &before) != 0) { ::close(directory); out.error = "PROFILE_ROOT_UNAVAILABLE"; out.blocked = true; return out; }
   const int duplicate = ::fcntl(directory, F_DUPFD_CLOEXEC, 0);
@@ -655,6 +659,7 @@ Observation ReadObservation(const std::string& root) {
   }
   return out;
 #else
+  (void)root;
   out.error = "LINUX_FILE_GUARD_UNAVAILABLE"; out.blocked = true; return out;
 #endif
 }

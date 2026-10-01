@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   companion-contract:
     runs-on: ubuntu-24.04
@@ -39,6 +43,7 @@ jobs:
         with:
           name: companion-contract-evidence
           path: .qa/companion-*.out
+          include-hidden-files: true
           if-no-files-found: warn
           retention-days: 7
 
@@ -123,6 +128,7 @@ jobs:
         with:
           name: companion-native-runtime-evidence
           path: .qa/
+          include-hidden-files: true
           if-no-files-found: warn
           retention-days: 7
 

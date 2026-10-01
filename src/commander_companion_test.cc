@@ -1,5 +1,6 @@
 #include "commander_companion.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -36,8 +37,9 @@ std::string BoundSnapshot() {
   return Replace(s, R"("state":"UNPROVEN","reasonCodes":["CHAT_OBSERVATION_MISSING"])", R"("state":"BOUND","reasonCodes":[])");
 }
 bool Has(const std::vector<companion::DisplayRow>& rows, const std::string& text) {
-  for (const auto& row : rows) if (row.text.find(text) != std::string::npos || row.detail.find(text) != std::string::npos) return true;
-  return false;
+  return std::any_of(rows.begin(), rows.end(), [&text](const companion::DisplayRow& row) {
+    return row.text.find(text) != std::string::npos || row.detail.find(text) != std::string::npos;
+  });
 }
 std::string ImmutableName(uint64_t time, unsigned serial = 0) {
   const std::string stamp = std::to_string(time), suffix = std::to_string(serial);
