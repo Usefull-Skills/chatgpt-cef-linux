@@ -57,3 +57,16 @@ CI artifacts contain source/compiler logs and binary/archive hashes. A passing
 source test is not an installed desktop, authenticated-session, long-duration,
 Emad host or model-inference acceptance receipt. Do not promote this candidate
 to FINAL until those separate operational gates are recorded.
+
+### Commit-matched CI receipts
+
+Before accepting a run, compare the pull-request head, branch ref, checked-out
+commit and the source hashes in its artifact. A successful older run must not
+qualify a corrected source revision. If the ref and pull-request head disagree,
+record the contradiction and stop promotion; do not replay an old job as proof
+of the new source.
+
+All CI pipelines use explicit Bash with `-e -o pipefail` so a failing compiler
+or test cannot be hidden by a successful log collector. The two scoped artifact
+uploads include their hidden `.qa` evidence directory, never a browser profile.
+Static analysis remains a failing gate; warnings are fixed, not suppressed.
