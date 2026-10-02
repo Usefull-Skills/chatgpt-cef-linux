@@ -6,7 +6,7 @@ A hardened, native-shell Linux client for ChatGPT built with Chromium Embedded F
 
 ## Release status
 
-**v0.7.1 — Release Hardening**
+**v0.8.0-rc.1 — Read-only companion preview / NOT STABLE**
 
 The current release baseline has passed a clean-from-scratch build with strict warnings-as-errors, static analysis, isolated runtime tab-lifecycle self-test, staged shutdown verification, dependency checks, secret/privacy scanning, RTL/LTR acceptance, upload/clipboard/voice acceptance, and single-instance validation.
 
