@@ -1,0 +1,101 @@
+name: Publish v0.8.0-rc.1 preview once
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  publish-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact preview candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="1581c8012dbbb08b88517e01aa5e4f4ab2eb97f3"
+          tag="v0.8.0-rc.1"
+          git cat-file -e "$expected^{commit}"
+          test "$(git show "$expected:VERSION" | tr -d '[:space:]')" = "0.8.0-rc.1"
+          git cat-file -e "$expected:docs/RELEASE_0.8.0-rc.1.md"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            git fetch --tags origin "$tag"
+            test "$(git rev-parse "$tag^{commit}")" = "$expected"
+            echo "TAG_ALREADY_CORRECT $tag $expected"
+          fi
+
+      - name: Checkout exact preview candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout --detach 1581c8012dbbb08b88517e01aa5e4f4ab2eb97f3
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y             build-essential cmake ninja-build curl bzip2 cppcheck             libgtk-3-dev libnss3-dev libx11-dev libxcomposite-dev             libxdamage-dev libxext-dev libxfixes-dev libxrandr-dev             libgbm-dev libpango1.0-dev libcups2-dev libdrm-dev             libasound2-dev fonts-vazirmatn xvfb xauth
+
+      - name: Rebuild and native-qualify exact candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/static-qa.sh
+          ./scripts/fetch-cef.sh
+          ./scripts/build-release.sh
+          sha256sum build/bin/chatgpt-cef-v2 | tee build/BINARY_SHA256.txt
+          companion_ci_sandbox=$(realpath build/bin/chrome-sandbox)
+          test "$companion_ci_sandbox" = "$GITHUB_WORKSPACE/build/bin/chrome-sandbox"
+          sudo chown root:root "$companion_ci_sandbox"
+          sudo chmod 4755 "$companion_ci_sandbox"
+          profile=$(mktemp -d /tmp/cgwa-preview-ci.XXXXXX)
+          trap 'rm -rf -- "$profile"' EXIT
+          mkdir -p .qa
+          xvfb-run -a timeout 18 build/bin/chatgpt-cef-v2             --cgwa-profile-dir="$profile" --background-test             --log-file="$profile/chrome_debug.log"             --self-test --companion-self-test --shutdown-self-test             '--host-resolver-rules=MAP * ~NOTFOUND'             >.qa/native.out 2>&1
+          cp "$profile/chrome_debug.log" .qa/native-chrome.log
+          grep -q 'CGWA_COMPANION_SELFTEST PASS' .qa/native-chrome.log
+          grep -q 'CGWA_SELFTEST PASS' .qa/native-chrome.log
+          grep -q 'CGWA_SHUTDOWN FINALIZE' .qa/native-chrome.log
+          grep -q 'CGWA_SHUTDOWN WINDOW_DESTROYED' .qa/native-chrome.log
+          ! grep -Eq 'FATAL|GPU process isn.t usable|segfault|stack smashing|trap|CGWA_COMPANION_SELFTEST FAIL' .qa/native-chrome.log
+
+      - name: Package preview assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/package-release.sh
+          tag="v0.8.0-rc.1"
+          expected="1581c8012dbbb08b88517e01aa5e4f4ab2eb97f3"
+          src="dist/chatgpt-cef-v2-v0.8.0-rc.1-source.tar.gz"
+          git archive --format=tar.gz --prefix=chatgpt-cef-v2-v0.8.0-rc.1-source/ -o "$src" "$expected"
+          sha256sum             dist/chatgpt-cef-v2-v0.8.0-rc.1-linux-x86_64.tar.gz             "$src" > dist/SHA256SUMS-v0.8.0-rc.1.txt
+          sha256sum -c dist/SHA256SUMS-v0.8.0-rc.1.txt
+
+      - name: Publish exact prerelease once
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="1581c8012dbbb08b88517e01aa5e4f4ab2eb97f3"
+          tag="v0.8.0-rc.1"
+          if ! git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$tag" "$expected" -m "ChatGPT CEF Linux v0.8.0-rc.1 preview"
+            git push origin "refs/tags/$tag"
+          fi
+          git fetch --tags origin "$tag"
+          test "$(git rev-parse "$tag^{commit}")" = "$expected"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "RELEASE_ALREADY_EXISTS"
+            exit 0
+          fi
+          gh release create "$tag"             --verify-tag             --prerelease             --title "ChatGPT CEF Linux v0.8.0-rc.1 Preview"             --notes-file docs/RELEASE_0.8.0-rc.1.md             dist/chatgpt-cef-v2-v0.8.0-rc.1-linux-x86_64.tar.gz             dist/chatgpt-cef-v2-v0.8.0-rc.1-source.tar.gz             dist/SHA256SUMS-v0.8.0-rc.1.txt
+          gh release view "$tag" --json tagName,isPrerelease,isDraft,url
