@@ -1,0 +1,81 @@
+name: Windows native preview
+
+on:
+  push:
+    branches: [feature/v0.8.0-rc.2-windows]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-native:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify preview version
+        shell: pwsh
+        run: |
+          if((Get-Content VERSION -Raw).Trim() -ne '0.8.0-rc.2'){ throw 'VERSION mismatch' }
+
+      - name: Companion contract tests (CEF-free)
+        shell: pwsh
+        run: |
+          cmake.exe -S . -B build-contract -G 'Visual Studio 17 2022' -A x64 -DCGWA_COMPANION_TESTS_ONLY=ON
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+          cmake.exe --build build-contract --config Release --target companion-contract-test -- /m
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+          ctest.exe --test-dir build-contract -C Release --output-on-failure
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+
+      - name: Fetch pinned CEF and build
+        shell: pwsh
+        run: |
+          ./scripts/build-windows.ps1
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+
+      - name: Native Windows lifecycle self-test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $exe=(Resolve-Path 'build-windows/bin/chatgpt-cef-v2.exe').Path
+          $profile=Join-Path $env:RUNNER_TEMP 'cgwa-win-native-profile'
+          $log=Join-Path $profile 'chrome_debug.log'
+          New-Item -ItemType Directory -Force $profile | Out-Null
+          $args=@(
+            "--cgwa-profile-dir=$profile",
+            '--background-test',
+            '--self-test',
+            '--companion-self-test',
+            '--shutdown-self-test',
+            '--disable-gpu',
+            '--host-resolver-rules=MAP * ~NOTFOUND',
+            "--log-file=$log"
+          )
+          $p=Start-Process -FilePath $exe -ArgumentList $args -PassThru
+          if(-not $p.WaitForExit(30000)){
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            throw 'native lifecycle timeout'
+          }
+          if($p.ExitCode -ne 0){ throw "native exit=$($p.ExitCode)" }
+          if(!(Test-Path $log)){ throw 'native log missing' }
+          $text=Get-Content -LiteralPath $log -Raw
+          foreach($marker in @('CGWA_COMPANION_SELFTEST PASS','CGWA_SELFTEST PASS','CGWA_SHUTDOWN FINALIZE','CGWA_SHUTDOWN WINDOW_DESTROYED')){
+            if(-not $text.Contains($marker)){ throw "missing marker: $marker" }
+          }
+          if($text -match 'CGWA_COMPANION_SELFTEST FAIL|CGWA_SELFTEST FAIL|FATAL|stack smashing'){ throw 'native failure marker present' }
+          Write-Output 'WINDOWS_NATIVE_LIFECYCLE_PASS'
+
+      - name: Package Windows preview
+        shell: pwsh
+        run: ./scripts/package-windows.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-cef-v2-v0.8.0-rc.2-windows-x86_64
+          path: |
+            dist/chatgpt-cef-v2-v0.8.0-rc.2-windows-x86_64.zip
+            dist/SHA256SUMS-windows-v0.8.0-rc.2.txt
+          if-no-files-found: error
