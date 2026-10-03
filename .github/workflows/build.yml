@@ -142,3 +142,58 @@ jobs:
             build/CEF_ARCHIVE_SHA256.txt
           if-no-files-found: error
           retention-days: 7
+
+
+  windows-native-preview:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch and verify pinned Windows CEF
+        run: |
+          $ErrorActionPreference='Stop'
+          $url='https://cef-builds.spotifycdn.com/cef_binary_154.0.32%2Bg682c378%2Bchromium-154.0.8037.58_windows64_minimal.tar.bz2'
+          $archive=Join-Path $env:RUNNER_TEMP 'cef-windows64.tar.bz2'
+          curl.exe -L --fail --retry 3 --retry-delay 2 -o $archive $url
+          if($LASTEXITCODE -ne 0){ throw "CEF_DOWNLOAD_FAIL:$LASTEXITCODE" }
+          $item=Get-Item -LiteralPath $archive
+          if($item.Length -ne 172827308){ throw "CEF_SIZE_MISMATCH:$($item.Length)" }
+          $sha=(Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($sha -ne 'aa1f7ab28005307edcc13f95e3ce5cd9d221894b00458fb5e368c00603204a2a'){ throw "CEF_SHA256_MISMATCH:$sha" }
+          New-Item -ItemType Directory -Force -Path .deps | Out-Null
+          tar -xjf $archive -C .deps
+          if($LASTEXITCODE -ne 0){ throw "CEF_EXTRACT_FAIL:$LASTEXITCODE" }
+          $root=Get-ChildItem .deps -Directory | Where-Object Name -like 'cef_binary_*_windows64_minimal' | Select-Object -First 1
+          if(-not $root){ throw 'CEF_ROOT_MISSING' }
+          Move-Item -LiteralPath $root.FullName -Destination .deps\cef
+          "CEF_ROOT=$((Resolve-Path .deps\cef).Path)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Configure native Windows preview without sandbox acceptance
+        run: |
+          $ErrorActionPreference='Stop'
+          cmake -S . -B build-windows -G "Visual Studio 17 2022" -A x64 -DCEF_ROOT="$env:CEF_ROOT" -DUSE_SANDBOX=OFF
+          if($LASTEXITCODE -ne 0){ throw "CMAKE_CONFIGURE_FAIL:$LASTEXITCODE" }
+
+      - name: Build native Windows preview
+        run: |
+          $ErrorActionPreference='Stop'
+          cmake --build build-windows --config Release --parallel 2
+          if($LASTEXITCODE -ne 0){ throw "WINDOWS_BUILD_FAIL:$LASTEXITCODE" }
+          $exe=Get-ChildItem build-windows -Recurse -Filter chatgpt-cef-v2.exe | Select-Object -First 1
+          if(-not $exe){ throw 'WINDOWS_EXE_MISSING' }
+          $sha=(Get-FileHash -LiteralPath $exe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "WINDOWS_PREVIEW_EXE=$($exe.FullName)"
+          "WINDOWS_PREVIEW_SHA256=$sha"
+
+      - name: Upload unsigned Windows preview build
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-cef-v2-windows-preview
+          path: build-windows/bin/
+          if-no-files-found: error
+          retention-days: 7
