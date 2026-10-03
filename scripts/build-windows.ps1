@@ -8,6 +8,7 @@ Write-Output "WINDOWS_BUILD_STAGE fetch started=$([DateTime]::UtcNow.ToString('o
 if($LASTEXITCODE -ne 0){ throw "CEF fetch failed exit=$LASTEXITCODE" }
 
 $CefRoot=Join-Path $Root '.deps\cef-windows'
+$CefRootCmake=([IO.Path]::GetFullPath($CefRoot)).Replace('\','/')
 $Build=Join-Path $Root 'build-windows'
 $VsWhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if(!(Test-Path -LiteralPath $VsWhere)){ throw "vswhere missing: $VsWhere" }
@@ -51,7 +52,7 @@ $CMake=(Get-Command cmake.exe -ErrorAction Stop).Source
 Write-Output "WINDOWS_BUILD_STAGE tools cmake=$CMake ninja=$Ninja"
 
 Write-Output "WINDOWS_BUILD_STAGE configure-generator=Ninja parallel=$Parallel started=$([DateTime]::UtcNow.ToString('o'))"
-& $CMake -S $Root -B $Build -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCEF_ROOT=$CefRoot"
+& $CMake -S $Root -B $Build -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCEF_ROOT=$CefRootCmake"
 if($LASTEXITCODE -ne 0){ throw "Ninja configure failed exit=$LASTEXITCODE" }
 
 Write-Output "WINDOWS_BUILD_STAGE compile parallel=$Parallel started=$([DateTime]::UtcNow.ToString('o'))"
