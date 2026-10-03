@@ -1,0 +1,101 @@
+name: Publish v0.8.0-rc.2 preview once
+
+on:
+  push:
+    branches: [release/v0.8.0-rc.2-publisher]
+    paths:
+      - '.github/workflows/publish-v0.8.0-rc.2-once.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      TARGET_SHA: 3bd2830001fc283ccc8f8a3668f47563e01c2539
+      QUALIFIED_RUN_ID: "37149565885"
+      TAG: v0.8.0-rc.2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify qualified run and exact source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$QUALIFIED_RUN_ID" --jq .head_sha)" = "$TARGET_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$QUALIFIED_RUN_ID" --jq .conclusion)" = "success"
+          git cat-file -e "$TARGET_SHA^{commit}"
+          test "$(git show "$TARGET_SHA:VERSION" | tr -d '[:space:]')" = "0.8.0-rc.2"
+          git cat-file -e "$TARGET_SHA:docs/RELEASE_0.8.0-rc.2.md"
+          git checkout --detach "$TARGET_SHA"
+
+      - name: Download exact qualified artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p incoming/linux incoming/windows
+          gh run download "$QUALIFIED_RUN_ID" --name chatgpt-cef-v2-v0.8.0-rc.2-linux-x86_64 --dir incoming/linux
+          gh run download "$QUALIFIED_RUN_ID" --name chatgpt-cef-v2-v0.8.0-rc.2-windows-x86_64 --dir incoming/windows
+          test -f incoming/linux/bin/chatgpt-cef-v2
+          test -f incoming/linux/BINARY_SHA256-linux.txt
+          test -f incoming/windows/chatgpt-cef-v2-v0.8.0-rc.2-windows-x86_64.zip
+          test -f incoming/windows/SHA256SUMS-windows-v0.8.0-rc.2.txt
+          linux_expected=$(awk 'NR==1{print $1}' incoming/linux/BINARY_SHA256-linux.txt)
+          linux_actual=$(sha256sum incoming/linux/bin/chatgpt-cef-v2 | awk '{print $1}')
+          test "$linux_actual" = "$linux_expected"
+          (cd incoming/windows && sha256sum -c SHA256SUMS-windows-v0.8.0-rc.2.txt)
+
+      - name: Package tested Linux runtime and exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build dist .deps/cef
+          mkdir -p build dist
+          cp -a incoming/linux/bin build/bin
+          chmod 0755 build/bin/chatgpt-cef-v2
+          test ! -e build/bin/chrome_crashpad_handler || chmod 0755 build/bin/chrome_crashpad_handler
+          test ! -e build/bin/chrome-sandbox || chmod 0755 build/bin/chrome-sandbox
+          ./scripts/fetch-cef.sh
+          ./scripts/package-release.sh
+          cp incoming/windows/chatgpt-cef-v2-v0.8.0-rc.2-windows-x86_64.zip dist/
+          git archive --format=tar.gz --prefix=chatgpt-cef-v2-v0.8.0-rc.2-source/ "$TARGET_SHA" > dist/chatgpt-cef-v2-v0.8.0-rc.2-source.tar.gz
+          rm -f dist/SHA256SUMS-v0.8.0-rc.2.txt
+          (
+            cd dist
+            sha256sum               chatgpt-cef-v2-v0.8.0-rc.2-linux-x86_64.tar.gz               chatgpt-cef-v2-v0.8.0-rc.2-windows-x86_64.zip               chatgpt-cef-v2-v0.8.0-rc.2-source.tar.gz               > SHA256SUMS-v0.8.0-rc.2.txt
+            sha256sum -c SHA256SUMS-v0.8.0-rc.2.txt
+          )
+
+      - name: Publish exact prerelease once
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+            test "$(git rev-parse "$TAG^{}")" = "$TARGET_SHA"
+          else
+            git tag -a "$TAG" "$TARGET_SHA" -m "ChatGPT CEF $TAG"
+            git push origin "refs/tags/$TAG"
+          fi
+          git show "$TARGET_SHA:docs/RELEASE_0.8.0-rc.2.md" > /tmp/release-notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            test "$(gh release view "$TAG" --json isPrerelease --jq .isPrerelease)" = "true"
+            echo "RELEASE_ALREADY_EXISTS"
+          else
+            gh release create "$TAG"               dist/chatgpt-cef-v2-v0.8.0-rc.2-linux-x86_64.tar.gz               dist/chatgpt-cef-v2-v0.8.0-rc.2-windows-x86_64.zip               dist/chatgpt-cef-v2-v0.8.0-rc.2-source.tar.gz               dist/SHA256SUMS-v0.8.0-rc.2.txt               --verify-tag --prerelease --title "ChatGPT CEF $TAG" --notes-file /tmp/release-notes.md
+          fi
+          test "$(gh release view "$TAG" --json assets --jq '.assets | length')" -eq 4
+          gh release view "$TAG" --json tagName,isDraft,isPrerelease,url,assets
