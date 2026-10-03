@@ -88,17 +88,26 @@ constexpr cef_color_t kDangerText = CefColorSetARGB(255, 220, 38, 38);      // #
 constexpr char kUIFont[] = "Vazirmatn, Noto Sans Arabic, DejaVu Sans, 12px";
 constexpr char kUIBoldFont[] = "Vazirmatn, Noto Sans Arabic, DejaVu Sans, Bold 12px";
 
+std::string PathUtf8(const std::filesystem::path& path) {
+#if defined(__cpp_lib_char8_t)
+  const auto value = path.u8string();
+  return std::string(reinterpret_cast<const char*>(value.data()), value.size());
+#else
+  return path.u8string();
+#endif
+}
+
 std::string StatePath() {
   if (const char* override_root = std::getenv("CGWA_PROFILE_ROOT");
       override_root && *override_root)
-    return (std::filesystem::u8path(override_root) / "tabs.state").u8string();
+    return PathUtf8(std::filesystem::u8path(override_root) / "tabs.state");
 #if defined(_WIN32)
   const char* local = std::getenv("LOCALAPPDATA");
   if (!local || !*local) local = std::getenv("TEMP");
   std::filesystem::path base =
       local && *local ? std::filesystem::u8path(local)
                       : std::filesystem::temp_directory_path();
-  return (base / "chatgpt-cef-v2" / "tabs.state").u8string();
+  return PathUtf8(base / "chatgpt-cef-v2" / "tabs.state");
 #else
   const char* home = std::getenv("HOME");
   std::string base = home ? home : "/tmp";
