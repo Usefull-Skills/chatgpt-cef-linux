@@ -23,36 +23,50 @@ function Assert-Archive {
   if($sha -ne $ExpectedSha256){ throw "CEF SHA256 mismatch expected=$ExpectedSha256 actual=$sha" }
 }
 
-if(Test-Path -LiteralPath $Archive){
-  Assert-Archive $Archive
-}else{
-  $part=$Archive+'.part'
-  Remove-Item -LiteralPath $part -Force -ErrorAction SilentlyContinue
-  Invoke-WebRequest -Uri $Url -OutFile $part
-  Assert-Archive $part
-  Move-Item -LiteralPath $part -Destination $Archive
-}
-
 if(Test-Path -LiteralPath $CefRoot){
   $readme=Join-Path $CefRoot 'README.txt'
   if((Test-Path $readme) -and (Select-String -LiteralPath $readme -SimpleMatch 'CEF Version:      154.0.32+g682c378+chromium-154.0.8037.58' -Quiet)){
-    Write-Output "CEF_ROOT=$CefRoot"
+    Write-Output "CEF_FETCH_CACHE_HIT root=$CefRoot"
     Write-Output "CEF_ARCHIVE_SHA256=$ExpectedSha256"
     exit 0
   }
   throw 'Existing .deps/cef-windows does not match the pinned version; refusing implicit replacement.'
 }
 
+if(Test-Path -LiteralPath $Archive){
+  Write-Output "CEF_FETCH_STAGE verify-existing started=$([DateTime]::UtcNow.ToString('o'))"
+  Assert-Archive $Archive
+}else{
+  $part=$Archive+'.part'
+  Remove-Item -LiteralPath $part -Force -ErrorAction SilentlyContinue
+  Write-Output "CEF_FETCH_STAGE download started=$([DateTime]::UtcNow.ToString('o'))"
+  & curl.exe --location --fail --retry 4 --retry-delay 2 --connect-timeout 20 --max-time 600 --output $part $Url
+  if($LASTEXITCODE -ne 0){ throw "CEF download failed exit=$LASTEXITCODE" }
+  Write-Output "CEF_FETCH_STAGE verify-download started=$([DateTime]::UtcNow.ToString('o'))"
+  Assert-Archive $part
+  Move-Item -LiteralPath $part -Destination $Archive
+}
+
+$SevenZip=(Get-Command 7z.exe -ErrorAction Stop).Source
 $tmp=Join-Path $Deps ('.cef-win-extract.'+[Guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Force $tmp | Out-Null
+$payload=Join-Path $tmp 'payload'
+New-Item -ItemType Directory -Force $tmp,$payload | Out-Null
 try{
-  & tar.exe -xjf $Archive -C $tmp
-  if($LASTEXITCODE -ne 0){ throw "tar extraction failed exit=$LASTEXITCODE" }
-  $extracted=Join-Path $tmp $Name
+  Write-Output "CEF_FETCH_STAGE extract-bzip2 started=$([DateTime]::UtcNow.ToString('o'))"
+  & $SevenZip x -y "-o$tmp" $Archive
+  if($LASTEXITCODE -ne 0){ throw "7z bzip2 extraction failed exit=$LASTEXITCODE" }
+  $tar=Get-ChildItem -LiteralPath $tmp -Filter '*.tar' -File | Select-Object -First 1
+  if(!$tar){ throw 'Intermediate CEF tar missing after bzip2 extraction' }
+  Write-Output "CEF_FETCH_STAGE extract-tar started=$([DateTime]::UtcNow.ToString('o'))"
+  & $SevenZip x -y "-o$payload" $tar.FullName
+  if($LASTEXITCODE -ne 0){ throw "7z tar extraction failed exit=$LASTEXITCODE" }
+  $extracted=Join-Path $payload $Name
   if(!(Test-Path -LiteralPath $extracted -PathType Container)){ throw 'Unexpected CEF archive layout' }
   Move-Item -LiteralPath $extracted -Destination $CefRoot
 }finally{
   Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }
-Write-Output "CEF_ROOT=$CefRoot"
+$readme=Join-Path $CefRoot 'README.txt'
+if(!(Test-Path $readme) -or !(Select-String -LiteralPath $readme -SimpleMatch 'CEF Version:      154.0.32+g682c378+chromium-154.0.8037.58' -Quiet)){ throw 'Extracted CEF version marker mismatch' }
+Write-Output "CEF_FETCH_PASS root=$CefRoot completed=$([DateTime]::UtcNow.ToString('o'))"
 Write-Output "CEF_ARCHIVE_SHA256=$ExpectedSha256"
