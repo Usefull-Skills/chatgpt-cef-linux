@@ -1,6 +1,7 @@
 #if defined(_WIN32)
 #include <windows.h>
 #include "include/cef_sandbox_win.h"
+#include "include/cef_version_info.h"
 #else
 #include <X11/Xlib.h>
 #endif
