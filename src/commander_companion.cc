@@ -326,13 +326,11 @@ std::string Join(const std::vector<std::string>& names) {
   return out.empty() ? "UNKNOWN / none observed" : out;
 }
 
-const char* PlatformPrivateFileGuardUnavailable() {
 #if defined(_WIN32)
+const char* PlatformPrivateFileGuardUnavailable() {
   return "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE";
-#else
-  return "PRIVATE_FILE_GUARD_UNAVAILABLE";
-#endif
 }
+#endif
 
 int OpenPrivateDirectory(const std::string& root, std::string& error) {
 #if defined(__linux__)
