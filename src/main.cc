@@ -29,35 +29,40 @@ bool IsSubprocess(CefRefPtr<CefCommandLine> command_line) {
 void ConfigureProfileOverride(CefRefPtr<CefCommandLine> command_line) {
   if (!command_line || !command_line->HasSwitch("cgwa-profile-dir"))
     return;
-  const std::string raw =
-      command_line->GetSwitchValue("cgwa-profile-dir").ToString();
+  const CefString raw = command_line->GetSwitchValue("cgwa-profile-dir");
   if (raw.empty()) return;
-  std::filesystem::path path = std::filesystem::u8path(raw);
+#if defined(_WIN32)
+  std::filesystem::path path(raw.ToWString());
+#else
+  std::filesystem::path path = std::filesystem::u8path(raw.ToString());
+#endif
   if (!path.is_absolute()) path = std::filesystem::absolute(path);
   path = path.lexically_normal();
 #if defined(_WIN32)
-  const std::string normalized = path.u8string();
-  _putenv_s("CGWA_PROFILE_ROOT", normalized.c_str());
+  _wputenv_s(L"CGWA_PROFILE_ROOT", path.wstring().c_str());
 #else
   setenv("CGWA_PROFILE_ROOT", path.c_str(), 1);
 #endif
 }
 
-std::string ConfigRoot() {
+std::filesystem::path ConfigRoot() {
+#if defined(_WIN32)
+  if (const wchar_t* override_root = _wgetenv(L"CGWA_PROFILE_ROOT");
+      override_root && *override_root)
+    return std::filesystem::path(override_root);
+  const wchar_t* local = _wgetenv(L"LOCALAPPDATA");
+  if (!local || !*local) local = _wgetenv(L"TEMP");
+  std::filesystem::path base =
+      local && *local ? std::filesystem::path(local)
+                      : std::filesystem::temp_directory_path();
+  return base / L"chatgpt-cef-v2";
+#else
   if (const char* override_root = std::getenv("CGWA_PROFILE_ROOT");
       override_root && *override_root)
-    return override_root;
-#if defined(_WIN32)
-  const char* local = std::getenv("LOCALAPPDATA");
-  if (!local || !*local) local = std::getenv("TEMP");
-  std::filesystem::path base =
-      local && *local ? std::filesystem::u8path(local)
-                      : std::filesystem::temp_directory_path();
-  return (base / "chatgpt-cef-v2").u8string();
-#else
+    return std::filesystem::u8path(override_root);
   const char* home = std::getenv("HOME");
-  std::string base = home ? home : "/tmp";
-  return base + "/.config/chatgpt-cef-v2";
+  return std::filesystem::u8path(home ? home : "/tmp") /
+         ".config/chatgpt-cef-v2";
 #endif
 }
 
@@ -86,7 +91,7 @@ int RunBrowser(const CefMainArgs& main_args,
   XSetIOErrorHandler(XIOErrorHandlerImpl);
 #endif
 
-  const std::filesystem::path root = std::filesystem::u8path(ConfigRoot());
+  const std::filesystem::path root = ConfigRoot();
   const std::filesystem::path cache = root / "cache";
   std::error_code ec;
   std::filesystem::create_directories(cache, ec);
@@ -96,8 +101,13 @@ int RunBrowser(const CefMainArgs& main_args,
   }
 
   CefSettings settings;
-  CefString(&settings.root_cache_path) = root.u8string();
-  CefString(&settings.cache_path) = cache.u8string();
+#if defined(_WIN32)
+  CefString(&settings.root_cache_path) = root.wstring();
+  CefString(&settings.cache_path) = cache.wstring();
+#else
+  CefString(&settings.root_cache_path) = root.string();
+  CefString(&settings.cache_path) = cache.string();
+#endif
   settings.persist_session_cookies = 1;
   settings.log_severity = LOGSEVERITY_WARNING;
   settings.background_color = CefColorSetARGB(255, 0, 0, 0);
