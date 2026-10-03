@@ -35,7 +35,7 @@ std::string Utf8(const std::wstring& input) {
 
 #if defined(_WIN32)
 int wmain(int argc, wchar_t** argv) {
-  Check(argc == 2, "usage");
+  Check(argc == 2 || argc == 3, "usage");
   const std::wstring root_w(argv[1]);
   const std::string root = Utf8(root_w);
   Check(!root.empty(), "root_utf8");
