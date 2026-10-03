@@ -14,9 +14,10 @@ void BrowserApp::OnBeforeCommandLineProcessing(
     const CefString& process_type,
     CefRefPtr<CefCommandLine> command_line) {
   if (process_type.empty()) {
-    // Stay on X11 to match the user's current desktop session and the tested
-    // Brave baseline. Do not disable the Chromium sandbox.
+#if !defined(_WIN32)
+    // Stay on X11 for the qualified Linux desktop path.
     command_line->AppendSwitchWithValue("ozone-platform", "x11");
+#endif
     command_line->AppendSwitch("enable-gpu-rasterization");
     command_line->AppendSwitch("enable-zero-copy");
   }
