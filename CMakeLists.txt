@@ -45,9 +45,17 @@ target_link_libraries(chatgpt-cef-v2 PRIVATE libcef_lib libcef_dll_wrapper ${CEF
 set(APP_OUT_DIR "${CMAKE_BINARY_DIR}/bin")
 set_target_properties(chatgpt-cef-v2 PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${APP_OUT_DIR}"
-  BUILD_RPATH "$ORIGIN"
-  INSTALL_RPATH "$ORIGIN"
 )
+if(OS_WINDOWS)
+  set_target_properties(chatgpt-cef-v2 PROPERTIES WIN32_EXECUTABLE TRUE)
+else()
+  set_target_properties(chatgpt-cef-v2 PROPERTIES
+    BUILD_RPATH "$ORIGIN"
+    INSTALL_RPATH "$ORIGIN"
+  )
+endif()
 COPY_FILES("chatgpt-cef-v2" "${CEF_BINARY_FILES}" "${CEF_BINARY_DIR}" "${APP_OUT_DIR}")
 COPY_FILES("chatgpt-cef-v2" "${CEF_RESOURCE_FILES}" "${CEF_RESOURCE_DIR}" "${APP_OUT_DIR}")
-SET_LINUX_SUID_PERMISSIONS("chatgpt-cef-v2" "${APP_OUT_DIR}/chrome-sandbox")
+if(OS_LINUX)
+  SET_LINUX_SUID_PERMISSIONS("chatgpt-cef-v2" "${APP_OUT_DIR}/chrome-sandbox")
+endif()
