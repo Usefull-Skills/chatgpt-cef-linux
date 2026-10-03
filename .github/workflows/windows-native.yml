@@ -30,6 +30,12 @@ jobs:
           ctest.exe --test-dir build-contract -C Release --output-on-failure
           if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
 
+      - name: Cache pinned CEF Windows dependency
+        uses: actions/cache@v4
+        with:
+          path: .deps/cef-windows
+          key: cef-windows-154.0.32-aa1f7ab28005307edcc13f95e3ce5cd9d221894b00458fb5e368c00603204a2a
+
       - name: Fetch pinned CEF and build
         shell: pwsh
         run: |
