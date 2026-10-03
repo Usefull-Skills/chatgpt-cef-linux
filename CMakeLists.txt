@@ -35,6 +35,8 @@ set(APP_SRCS
   src/client.h
   src/commander_companion.cc
   src/commander_companion.h
+  src/windows_private_file.cc
+  src/windows_private_file.h
 )
 
 add_executable(chatgpt-cef-v2 ${APP_SRCS})
