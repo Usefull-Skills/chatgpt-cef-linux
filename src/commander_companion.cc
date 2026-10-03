@@ -326,6 +326,14 @@ std::string Join(const std::vector<std::string>& names) {
   return out.empty() ? "UNKNOWN / none observed" : out;
 }
 
+const char* PlatformPrivateFileGuardUnavailable() {
+#if defined(_WIN32)
+  return "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE";
+#else
+  return "PRIVATE_FILE_GUARD_UNAVAILABLE";
+#endif
+}
+
 int OpenPrivateDirectory(const std::string& root, std::string& error) {
 #if defined(__linux__)
   if (root.empty() || root.size() > 4096 || root.front() != '/' || root == "/" || root.back() == '/') { error = "PROFILE_ROOT_INVALID"; return -1; }
@@ -353,7 +361,7 @@ int OpenPrivateDirectory(const std::string& root, std::string& error) {
   }
   error.clear(); return directory;
 #else
-  (void)root; error = "LINUX_FILE_GUARD_UNAVAILABLE"; return -1;
+  (void)root; error = PlatformPrivateFileGuardUnavailable(); return -1;
 #endif
 }
 
@@ -388,7 +396,7 @@ std::string ReadPrivateAt(int directory, const char* name, size_t cap, std::stri
   error.clear(); return bytes;
 #else
   (void)directory; (void)name; (void)cap;
-  error = "LINUX_FILE_GUARD_UNAVAILABLE"; return {};
+  error = PlatformPrivateFileGuardUnavailable(); return {};
 #endif
 }
 
@@ -420,7 +428,7 @@ std::string ReadPrivateFile(const std::string& root, const char* name, size_t ca
   ::close(directory); return bytes;
 #else
   (void)root; (void)name; (void)cap;
-  error = "LINUX_FILE_GUARD_UNAVAILABLE"; return {};
+  error = PlatformPrivateFileGuardUnavailable(); return {};
 #endif
 }
 }  // namespace
@@ -660,7 +668,7 @@ Observation ReadObservation(const std::string& root) {
   return out;
 #else
   (void)root;
-  out.error = "LINUX_FILE_GUARD_UNAVAILABLE"; out.blocked = true; return out;
+  out.error = PlatformPrivateFileGuardUnavailable(); out.blocked = true; return out;
 #endif
 }
 NativeBinding ReadNativeBinding(const std::string& root) {
@@ -670,8 +678,13 @@ NativeBinding ReadNativeBinding(const std::string& root) {
 }
 std::string ProfileRoot() {
   if (const char* root = std::getenv("CGWA_PROFILE_ROOT"); root && *root) return root;
+#if defined(_WIN32)
+  const char* local = std::getenv("LOCALAPPDATA");
+  return local && *local ? std::string(local) + "\\chatgpt-cef-v2" : std::string();
+#else
   const char* home = std::getenv("HOME");
   return home && *home ? std::string(home) + "/.config/chatgpt-cef-v2" : std::string();
+#endif
 }
 uint64_t NowEpochMs() {
   return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
