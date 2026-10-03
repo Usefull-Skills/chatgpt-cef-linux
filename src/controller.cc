@@ -1,7 +1,19 @@
 #include "controller.h"
 
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <shellapi.h>
+#else
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <cerrno>
@@ -9,12 +21,9 @@
 #include <cstdio>
 #include <csignal>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 #include "client.h"
 #include "include/base/cef_bind.h"
@@ -82,10 +91,36 @@ constexpr char kUIBoldFont[] = "Vazirmatn, Noto Sans Arabic, DejaVu Sans, Bold 1
 std::string StatePath() {
   if (const char* override_root = std::getenv("CGWA_PROFILE_ROOT");
       override_root && *override_root)
-    return std::string(override_root) + "/tabs.state";
+    return (std::filesystem::u8path(override_root) / "tabs.state").u8string();
+#if defined(_WIN32)
+  const char* local = std::getenv("LOCALAPPDATA");
+  if (!local || !*local) local = std::getenv("TEMP");
+  std::filesystem::path base =
+      local && *local ? std::filesystem::u8path(local)
+                      : std::filesystem::temp_directory_path();
+  return (base / "chatgpt-cef-v2" / "tabs.state").u8string();
+#else
   const char* home = std::getenv("HOME");
   std::string base = home ? home : "/tmp";
   return base + "/.config/chatgpt-cef-v2/tabs.state";
+#endif
+}
+
+void RemoveStateFile(const std::string& path) {
+  std::error_code ec;
+  std::filesystem::remove(std::filesystem::u8path(path), ec);
+}
+
+bool CommitStateFile(const std::string& temp, const std::string& path) {
+#if defined(_WIN32)
+  const std::wstring temp_w = std::filesystem::u8path(temp).wstring();
+  const std::wstring path_w = std::filesystem::u8path(path).wstring();
+  return ::MoveFileExW(temp_w.c_str(), path_w.c_str(),
+                       MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+#else
+  if (::chmod(temp.c_str(), 0600) != 0) return false;
+  return ::rename(temp.c_str(), path.c_str()) == 0;
+#endif
 }
 
 bool StartsWith(const std::string& s, const std::string& p) {
@@ -122,6 +157,7 @@ std::string Utf8Ellipsize(const std::string& input, size_t max_chars,
 }
 
 void SetX11WindowClass(CefRefPtr<CefWindow> window) {
+#if defined(__linux__)
   if (!window) return;
   Display* display = XOpenDisplay(nullptr);
   if (!display) return;
@@ -134,6 +170,9 @@ void SetX11WindowClass(CefRefPtr<CefWindow> window) {
   XSetClassHint(display, xid, &hint);
   XFlush(display);
   XCloseDisplay(display);
+#else
+  (void)window;
+#endif
 }
 
 }  // namespace
@@ -595,14 +634,24 @@ void AppController::RunCompanionSelfTest() {
   const bool separate = shown && active && active->overlay && active->overlay->IsValid() &&
     active->overlay->GetBounds().width == companion_overlay_->GetBounds().x &&
     companion_overlay_->GetBounds().width == kCompanionWidth;
-  const bool unknown = !companion_observation_.valid && companion_observation_.error == "SNAPSHOT_MISSING" &&
-    !companion_binding_.valid && companion_rows_.size() > 1 &&
-    companion_rows_[1]->GetText().ToString().find("UNPROVEN") != std::string::npos;
+#if defined(_WIN32)
+  const bool companion_safe =
+      !companion_observation_.valid && companion_observation_.blocked &&
+      companion_observation_.error == "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE" &&
+      !companion_binding_.valid;
+  const char* companion_check = "windows_private_file_guard_fail_closed";
+#else
+  const bool companion_safe =
+      !companion_observation_.valid && companion_observation_.error == "SNAPSHOT_MISSING" &&
+      !companion_binding_.valid && companion_rows_.size() > 1 &&
+      companion_rows_[1]->GetText().ToString().find("UNPROVEN") != std::string::npos;
+  const char* companion_check = "missing_snapshot_unproven";
+#endif
   ToggleCompanionPanel();
   const bool hidden = companion_overlay_ && companion_overlay_->IsValid() && !companion_overlay_->IsVisible();
-  LOG(WARNING) << "CGWA_COMPANION_SELFTEST " << (shown && separate && unknown && hidden ? "PASS" : "FAIL")
+  LOG(WARNING) << "CGWA_COMPANION_SELFTEST " << (shown && separate && companion_safe && hidden ? "PASS" : "FAIL")
     << " native_overlay=" << shown << " separate_bounds=" << separate
-    << " missing_snapshot_unproven=" << unknown << " toggle_hidden=" << hidden;
+    << " " << companion_check << "=" << companion_safe << " toggle_hidden=" << hidden;
 }
 
 void AppController::NewTab(const std::string& url) {
@@ -681,7 +730,12 @@ void AppController::SaveSessionState() {
   if (tabs_.empty()) return;
   const std::string path = StatePath();
   const std::string temp = path + ".tmp";
-  std::ofstream out(temp, std::ios::trunc);
+  std::error_code directory_error;
+  const auto parent = std::filesystem::u8path(path).parent_path();
+  if (!parent.empty()) std::filesystem::create_directories(parent, directory_error);
+  if (directory_error) return;
+
+  std::ofstream out(std::filesystem::u8path(temp), std::ios::trunc);
   if (!out) return;
   int active_index = 0;
   for (size_t i = 0; i < tabs_.size(); ++i)
@@ -701,13 +755,8 @@ void AppController::SaveSessionState() {
   out.flush();
   const bool good = out.good();
   out.close();
-  if (!good) {
-    ::unlink(temp.c_str());
-    return;
-  }
-  ::chmod(temp.c_str(), 0600);
-  if (::rename(temp.c_str(), path.c_str()) != 0)
-    ::unlink(temp.c_str());
+  if (!good || !CommitStateFile(temp, path))
+    RemoveStateFile(temp);
 }
 
 void AppController::CloseTab(int tab_id) {
@@ -1093,6 +1142,12 @@ bool AppController::HandlePopupURL(const std::string& url) {
 
 bool AppController::OpenExternal(const std::string& url) {
   if (!(StartsWith(url, "https://") || StartsWith(url, "http://"))) return false;
+#if defined(_WIN32)
+  const std::wstring wide = CefString(url).ToWString();
+  const auto result = reinterpret_cast<INT_PTR>(
+      ::ShellExecuteW(nullptr, L"open", wide.c_str(), nullptr, nullptr, SW_SHOWNORMAL));
+  return result > 32;
+#else
   pid_t pid = fork();
   if (pid < 0) return false;
   if (pid == 0) {
@@ -1107,6 +1162,7 @@ bool AppController::OpenExternal(const std::string& url) {
   int status = 0;
   while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
   return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+#endif
 }
 
 void AppController::OnWindowDestroyed() {
