@@ -1,20 +1,26 @@
 #include "controller.h"
 
+#if defined(_WIN32)
+#include <windows.h>
+#include <shellapi.h>
+#else
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-
-#include <algorithm>
-#include <cerrno>
-#include <cctype>
-#include <cstdio>
-#include <csignal>
-#include <cstdlib>
-#include <fstream>
-#include <sstream>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
+
+#include <algorithm>
+#include <cerrno>
+#include <cctype>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 
 #include "client.h"
 #include "include/base/cef_bind.h"
@@ -82,10 +88,20 @@ constexpr char kUIBoldFont[] = "Vazirmatn, Noto Sans Arabic, DejaVu Sans, Bold 1
 std::string StatePath() {
   if (const char* override_root = std::getenv("CGWA_PROFILE_ROOT");
       override_root && *override_root)
-    return std::string(override_root) + "/tabs.state";
+    return (std::filesystem::path(override_root) / "tabs.state").string();
+#if defined(_WIN32)
+  if (const char* local = std::getenv("LOCALAPPDATA"); local && *local)
+    return (std::filesystem::path(local) / "chatgpt-cef-v2" / "tabs.state").string();
+  if (const char* profile = std::getenv("USERPROFILE"); profile && *profile)
+    return (std::filesystem::path(profile) / "AppData" / "Local" /
+            "chatgpt-cef-v2" / "tabs.state").string();
+  return (std::filesystem::temp_directory_path() / "chatgpt-cef-v2" /
+          "tabs.state").string();
+#else
   const char* home = std::getenv("HOME");
   std::string base = home ? home : "/tmp";
   return base + "/.config/chatgpt-cef-v2/tabs.state";
+#endif
 }
 
 bool StartsWith(const std::string& s, const std::string& p) {
@@ -121,7 +137,10 @@ std::string Utf8Ellipsize(const std::string& input, size_t max_chars,
   return input.substr(0, keep_bytes) + "…";
 }
 
-void SetX11WindowClass(CefRefPtr<CefWindow> window) {
+void SetPlatformWindowIdentity(CefRefPtr<CefWindow> window) {
+#if defined(_WIN32)
+  (void)window;
+#else
   if (!window) return;
   Display* display = XOpenDisplay(nullptr);
   if (!display) return;
@@ -134,6 +153,7 @@ void SetX11WindowClass(CefRefPtr<CefWindow> window) {
   XSetClassHint(display, xid, &hint);
   XFlush(display);
   XCloseDisplay(display);
+#endif
 }
 
 }  // namespace
@@ -286,7 +306,7 @@ void AppController::OnWindowCreated(CefRefPtr<CefWindow> window) {
   window_ = window;
   window_created_ = true;
   window_->SetTitle("ChatGPT");
-  SetX11WindowClass(window_);
+  SetPlatformWindowIdentity(window_);
   BuildWindowUI();
   window_->CenterWindow(CefSize(1180, 620));
   window_->Show();
@@ -702,12 +722,23 @@ void AppController::SaveSessionState() {
   const bool good = out.good();
   out.close();
   if (!good) {
-    ::unlink(temp.c_str());
+    std::error_code remove_ec;
+    std::filesystem::remove(temp, remove_ec);
     return;
   }
+#if defined(_WIN32)
+  const std::wstring wtemp = CefString(temp).ToWString();
+  const std::wstring wpath = CefString(path).ToWString();
+  if (!MoveFileExW(wtemp.c_str(), wpath.c_str(),
+                   MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+    std::error_code remove_ec;
+    std::filesystem::remove(temp, remove_ec);
+  }
+#else
   ::chmod(temp.c_str(), 0600);
   if (::rename(temp.c_str(), path.c_str()) != 0)
     ::unlink(temp.c_str());
+#endif
 }
 
 void AppController::CloseTab(int tab_id) {
@@ -1093,6 +1124,13 @@ bool AppController::HandlePopupURL(const std::string& url) {
 
 bool AppController::OpenExternal(const std::string& url) {
   if (!(StartsWith(url, "https://") || StartsWith(url, "http://"))) return false;
+#if defined(_WIN32)
+  const std::wstring wurl = CefString(url).ToWString();
+  const auto result = reinterpret_cast<std::intptr_t>(
+      ShellExecuteW(nullptr, L"open", wurl.c_str(), nullptr, nullptr,
+                    SW_SHOWNORMAL));
+  return result > 32;
+#else
   pid_t pid = fork();
   if (pid < 0) return false;
   if (pid == 0) {
@@ -1107,6 +1145,7 @@ bool AppController::OpenExternal(const std::string& url) {
   int status = 0;
   while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
   return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+#endif
 }
 
 void AppController::OnWindowDestroyed() {
