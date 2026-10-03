@@ -217,8 +217,17 @@ int main(int argc, char** argv) {
     !companion::ImmutableSnapshotName(ImmutableName(1000) + ".tmp", filename_time), "uppercase UUID legacy and temporary files are not immutable candidates");
 #if defined(__linux__)
   FileGuards(unknown);
+#elif defined(_WIN32)
+  const auto windows_observation = companion::ReadObservation(companion::ProfileRoot());
+  Check(!windows_observation.valid && windows_observation.blocked &&
+        windows_observation.error == "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE",
+        "Windows companion observation fails closed until native ACL guard is qualified");
+  const auto windows_binding = companion::ReadNativeBinding(companion::ProfileRoot());
+  Check(!windows_binding.valid &&
+        windows_binding.error == "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE",
+        "Windows native binding fails closed until native ACL guard is qualified");
 #else
-  std::cout << "UNPROVEN Linux private-file guards (not a Linux runtime)\n";
+  std::cout << "UNPROVEN private-file guards on unsupported runtime\n";
 #endif
   if (argc == 3 && std::string(argv[1]) == "--fixture") {
     std::ifstream fixture(argv[2], std::ios::binary);
