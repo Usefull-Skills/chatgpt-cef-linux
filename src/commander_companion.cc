@@ -670,8 +670,16 @@ NativeBinding ReadNativeBinding(const std::string& root) {
 }
 std::string ProfileRoot() {
   if (const char* root = std::getenv("CGWA_PROFILE_ROOT"); root && *root) return root;
+#if defined(_WIN32)
+  if (const char* local = std::getenv("LOCALAPPDATA"); local && *local)
+    return std::string(local) + "\\chatgpt-cef-v2";
+  if (const char* profile = std::getenv("USERPROFILE"); profile && *profile)
+    return std::string(profile) + "\\AppData\\Local\\chatgpt-cef-v2";
+  return std::string();
+#else
   const char* home = std::getenv("HOME");
   return home && *home ? std::string(home) + "/.config/chatgpt-cef-v2" : std::string();
+#endif
 }
 uint64_t NowEpochMs() {
   return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
