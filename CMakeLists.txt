@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 project(chatgpt_cef_v2 LANGUAGES C CXX)
 
-# Headless contract tests do not load CEF, launch a browser, invoke a model or
-# require X11. Useful as a separate Linux CI gate before the native CEF build.
+# Headless companion contract tests do not load CEF or launch a browser.
 option(CGWA_COMPANION_TESTS_ONLY "Build CEF-free companion contract tests only" OFF)
 if(CGWA_COMPANION_TESTS_ONLY)
   enable_testing()
@@ -37,17 +36,36 @@ set(APP_SRCS
   src/commander_companion.h
 )
 
-add_executable(chatgpt-cef-v2 ${APP_SRCS})
+if(WIN32)
+  add_executable(chatgpt-cef-v2 WIN32 ${APP_SRCS})
+else()
+  add_executable(chatgpt-cef-v2 ${APP_SRCS})
+endif()
 SET_EXECUTABLE_TARGET_PROPERTIES(chatgpt-cef-v2)
+target_compile_features(chatgpt-cef-v2 PRIVATE cxx_std_17)
 target_include_directories(chatgpt-cef-v2 PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CEF_ROOT}")
 target_link_libraries(chatgpt-cef-v2 PRIVATE libcef_lib libcef_dll_wrapper ${CEF_STANDARD_LIBS})
+if(WIN32)
+  target_link_libraries(chatgpt-cef-v2 PRIVATE Shell32)
+endif()
 
 set(APP_OUT_DIR "${CMAKE_BINARY_DIR}/bin")
 set_target_properties(chatgpt-cef-v2 PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${APP_OUT_DIR}"
-  BUILD_RPATH "$ORIGIN"
-  INSTALL_RPATH "$ORIGIN"
+  RUNTIME_OUTPUT_DIRECTORY_DEBUG "${APP_OUT_DIR}"
+  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${APP_OUT_DIR}"
+  RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${APP_OUT_DIR}"
+  RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL "${APP_OUT_DIR}"
 )
+if(UNIX AND NOT APPLE)
+  set_target_properties(chatgpt-cef-v2 PROPERTIES
+    BUILD_RPATH "$ORIGIN"
+    INSTALL_RPATH "$ORIGIN"
+  )
+endif()
+
 COPY_FILES("chatgpt-cef-v2" "${CEF_BINARY_FILES}" "${CEF_BINARY_DIR}" "${APP_OUT_DIR}")
 COPY_FILES("chatgpt-cef-v2" "${CEF_RESOURCE_FILES}" "${CEF_RESOURCE_DIR}" "${APP_OUT_DIR}")
-SET_LINUX_SUID_PERMISSIONS("chatgpt-cef-v2" "${APP_OUT_DIR}/chrome-sandbox")
+if(OS_LINUX)
+  SET_LINUX_SUID_PERMISSIONS("chatgpt-cef-v2" "${APP_OUT_DIR}/chrome-sandbox")
+endif()
