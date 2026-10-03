@@ -44,6 +44,19 @@ SET_EXECUTABLE_TARGET_PROPERTIES(chatgpt-cef-v2)
 target_include_directories(chatgpt-cef-v2 PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CEF_ROOT}")
 target_link_libraries(chatgpt-cef-v2 PRIVATE libcef_lib libcef_dll_wrapper ${CEF_STANDARD_LIBS})
 
+if(OS_WINDOWS)
+  target_link_libraries(chatgpt-cef-v2 PRIVATE advapi32.lib shell32.lib)
+  add_executable(windows-private-file-test
+    src/windows_private_file.cc
+    src/windows_private_file.h
+    src/windows_private_file_test.cc)
+  target_compile_features(windows-private-file-test PRIVATE cxx_std_17)
+  target_include_directories(windows-private-file-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(windows-private-file-test PRIVATE advapi32.lib)
+  set_target_properties(windows-private-file-test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
+endif()
+
 set(APP_OUT_DIR "${CMAKE_BINARY_DIR}/bin")
 set_target_properties(chatgpt-cef-v2 PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${APP_OUT_DIR}"
