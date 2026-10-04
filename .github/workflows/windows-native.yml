@@ -42,6 +42,49 @@ jobs:
           ./scripts/build-windows.ps1
           if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
 
+      - name: Exercise native Windows private-file ACL guard
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'cef-private-guard'
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $root
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          $user=[Security.Principal.WindowsIdentity]::GetCurrent().User
+          $system=New-Object Security.Principal.SecurityIdentifier('S-1-5-18')
+          $admins=New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')
+          function Set-PrivateAcl([string]$path,[bool]$directory) {
+            if($directory){ $acl=New-Object Security.AccessControl.DirectorySecurity }
+            else { $acl=New-Object Security.AccessControl.FileSecurity }
+            $acl.SetOwner($user)
+            $acl.SetAccessRuleProtection($true,$false)
+            $inherit=if($directory){[Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit'}else{[Security.AccessControl.InheritanceFlags]::None}
+            foreach($sid in @($user,$system,$admins)){
+              $rule=New-Object Security.AccessControl.FileSystemAccessRule(
+                $sid,[Security.AccessControl.FileSystemRights]::FullControl,
+                $inherit,[Security.AccessControl.PropagationFlags]::None,
+                [Security.AccessControl.AccessControlType]::Allow)
+              [void]$acl.AddAccessRule($rule)
+            }
+            Set-Acl -LiteralPath $path -AclObject $acl
+          }
+          Set-PrivateAcl $root $true
+          [IO.File]::WriteAllText((Join-Path $root 'commander-binding.json'),('{"binding":true}'+[char]10),(New-Object Text.UTF8Encoding($false)))
+          [IO.File]::WriteAllText((Join-Path $root 'commander-companion-0000000000001000-00000000-0000-4000-8000-000000000001.json'),('{"snapshot":1}'+[char]10),(New-Object Text.UTF8Encoding($false)))
+          [IO.File]::WriteAllText((Join-Path $root 'commander-companion-0000000000002000-00000000-0000-4000-8000-000000000002.json'),('{"snapshot":2}'+[char]10),(New-Object Text.UTF8Encoding($false)))
+          Get-ChildItem -LiteralPath $root -File | ForEach-Object { Set-PrivateAcl $_.FullName $false }
+          $test=Get-ChildItem build-windows -Recurse -Filter windows-private-file-test.exe | Select-Object -First 1
+          if(-not $test){ throw 'WINDOWS_PRIVATE_TEST_EXE_MISSING' }
+          & $test.FullName $root
+          if($LASTEXITCODE -ne 0){ throw "WINDOWS_PRIVATE_GUARD_FAIL:$LASTEXITCODE" }
+          $binding=Join-Path $root 'commander-binding.json'
+          $acl=Get-Acl -LiteralPath $binding
+          $world=New-Object Security.Principal.SecurityIdentifier('S-1-1-0')
+          $rule=New-Object Security.AccessControl.FileSystemAccessRule($world,'Read','Allow')
+          [void]$acl.AddAccessRule($rule)
+          Set-Acl -LiteralPath $binding -AclObject $acl
+          & $test.FullName $root --expect-binding-reject
+          if($LASTEXITCODE -ne 0){ throw "WINDOWS_BROAD_ACL_REJECT_FAIL:$LASTEXITCODE" }
+
       - name: Native Windows lifecycle self-test
         shell: pwsh
         run: |
@@ -50,6 +93,21 @@ jobs:
           $profile=Join-Path $env:RUNNER_TEMP 'cgwa-win-native-profile'
           $log=Join-Path $profile 'chrome_debug.log'
           New-Item -ItemType Directory -Force $profile | Out-Null
+          $user=[Security.Principal.WindowsIdentity]::GetCurrent().User
+          $system=New-Object Security.Principal.SecurityIdentifier('S-1-5-18')
+          $admins=New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')
+          $acl=New-Object Security.AccessControl.DirectorySecurity
+          $acl.SetOwner($user)
+          $acl.SetAccessRuleProtection($true,$false)
+          foreach($sid in @($user,$system,$admins)){
+            $rule=New-Object Security.AccessControl.FileSystemAccessRule(
+              $sid,[Security.AccessControl.FileSystemRights]::FullControl,
+              [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit',
+              [Security.AccessControl.PropagationFlags]::None,
+              [Security.AccessControl.AccessControlType]::Allow)
+            [void]$acl.AddAccessRule($rule)
+          }
+          Set-Acl -LiteralPath $profile -AclObject $acl
           $args=@(
             "--cgwa-profile-dir=$profile",
             '--background-test',

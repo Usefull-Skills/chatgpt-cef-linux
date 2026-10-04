@@ -56,7 +56,7 @@ Write-Output "WINDOWS_BUILD_STAGE configure-generator=Ninja parallel=$Parallel s
 if($LASTEXITCODE -ne 0){ throw "Ninja configure failed exit=$LASTEXITCODE" }
 
 Write-Output "WINDOWS_BUILD_STAGE compile parallel=$Parallel started=$([DateTime]::UtcNow.ToString('o'))"
-& $CMake --build $Build --parallel $Parallel --target chatgpt-cef-v2
+& $CMake --build $Build --parallel $Parallel --target chatgpt-cef-v2 windows-private-file-test
 if($LASTEXITCODE -ne 0){ throw "Ninja build failed exit=$LASTEXITCODE" }
 
 $Exe=Join-Path $Build 'bin\chatgpt-cef-v2.exe'
