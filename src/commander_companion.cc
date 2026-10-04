@@ -1,4 +1,5 @@
 #include "commander_companion.h"
+#include "windows_private_file.h"
 
 #include <algorithm>
 #include <array>
@@ -424,6 +425,8 @@ std::string ReadPrivateFile(const std::string& root, const char* name, size_t ca
   std::string bytes = ReadPrivateAt(directory, name, cap, error);
   if (error.empty() && !DirectoryUnchanged(root, directory, before, error)) bytes.clear();
   ::close(directory); return bytes;
+#elif defined(_WIN32)
+  return winprivate::ReadPrivateFile(root, name, cap, error);
 #else
   (void)root; (void)name; (void)cap;
   error = PlatformPrivateFileGuardUnavailable(); return {};
@@ -662,6 +665,22 @@ Observation ReadObservation(const std::string& root) {
   if (!out.valid) out.blocked = true;
   if (out.valid && !latest.empty() && out.observed_at != latest_time) {
     out.valid = false; out.blocked = true; out.error = "SNAPSHOT_FILENAME_TIMESTAMP_MISMATCH";
+  }
+  return out;
+#elif defined(_WIN32)
+  const auto snapshot = winprivate::ReadLatestSnapshot(root, kMaximumSnapshotBytes);
+  if (!snapshot.error.empty()) {
+    out.error = snapshot.error == "FILE_MISSING" && snapshot.selected_name.empty()
+        ? "SNAPSHOT_MISSING" : snapshot.error;
+    out.blocked = out.error != "SNAPSHOT_MISSING";
+    return out;
+  }
+  out = ParseObservation(snapshot.bytes);
+  if (!out.valid) out.blocked = true;
+  if (out.valid && !snapshot.selected_name.empty() &&
+      out.observed_at != snapshot.selected_epoch_ms) {
+    out.valid = false; out.blocked = true;
+    out.error = "SNAPSHOT_FILENAME_TIMESTAMP_MISMATCH";
   }
   return out;
 #else
