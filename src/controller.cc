@@ -645,10 +645,13 @@ void AppController::RunCompanionSelfTest() {
     companion_overlay_->GetBounds().width == kCompanionWidth;
 #if defined(_WIN32)
   const bool companion_safe =
-      !companion_observation_.valid && companion_observation_.blocked &&
-      companion_observation_.error == "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE" &&
-      !companion_binding_.valid;
-  const char* companion_check = "windows_private_file_guard_fail_closed";
+      !companion_observation_.valid &&
+      !companion_observation_.error.empty() &&
+      companion_observation_.error != "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE" &&
+      !companion_binding_.valid &&
+      !companion_binding_.error.empty() &&
+      companion_binding_.error != "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE";
+  const char* companion_check = "windows_private_file_guard_available_fail_closed";
 #else
   const bool companion_safe =
       !companion_observation_.valid && companion_observation_.error == "SNAPSHOT_MISSING" &&
