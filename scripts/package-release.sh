@@ -7,7 +7,7 @@ VERSION=$(tr -d '[:space:]' < "$ROOT/VERSION")
 BUILD="$ROOT/build/bin"
 CEF="$ROOT/.deps/cef"
 DIST="$ROOT/dist"
-NAME="chatgpt-cef-v2-v${VERSION}-linux-x86_64"
+NAME="remote-commander-browser-v${VERSION}-linux-x86_64"
 STAGE="$DIST/$NAME"
 ARCHIVE="$DIST/$NAME.tar.gz"
 
@@ -27,8 +27,10 @@ set -euo pipefail
 umask 077
 HERE=\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)
 TARGET="\$HOME/.local/share/chatgpt-cef-v2/runtime-v${VERSION}"
-LAUNCHER="\$HOME/.local/bin/chatgpt-cef-v2"
-DESKTOP="\$HOME/.local/share/applications/chatgpt-cef-v2.desktop"
+LAUNCHER="\$HOME/.local/bin/remote-commander-browser"
+LEGACY_LAUNCHER="\$HOME/.local/bin/chatgpt-cef-v2"
+DESKTOP="\$HOME/.local/share/applications/remote-commander-browser.desktop"
+LEGACY_DESKTOP="\$HOME/.local/share/applications/chatgpt-cef-v2.desktop"
 [[ ! -e "\$TARGET" ]] || { echo "Target exists: \$TARGET" >&2; exit 20; }
 mkdir -p "\$(dirname "\$TARGET")" "\$HOME/.local/bin" "\$HOME/.local/share/applications"
 cp -a "\$HERE/runtime" "\$TARGET"
@@ -45,7 +47,7 @@ BIN="\$RUNTIME/chatgpt-cef-v2"
 SANDBOX="\$RUNTIME/chrome-sandbox"
 EXPECTED_BIN_SHA="\$BIN_SHA"
 EXPECTED_SANDBOX_SHA="\$SAN_SHA"
-fail(){ printf 'ChatGPT CEF V2: %s\\n' "\$1" >&2; exit "\$2"; }
+fail(){ printf 'Remote Commander Browser: %s\\n' "\$1" >&2; exit "\$2"; }
 [[ -x "\$BIN" ]] || fail "executable missing" 20
 [[ -f "\$SANDBOX" ]] || fail "sandbox missing" 21
 read -r mode owner group < <(stat -Lc '%a %U %G' "\$SANDBOX")
@@ -56,12 +58,14 @@ cd "\$RUNTIME"
 exec "\$BIN" "\$@"
 LAUNCH
 chmod 0755 "\$LAUNCHER"
+rm -f "\$LEGACY_LAUNCHER"
+ln -s "\$LAUNCHER" "\$LEGACY_LAUNCHER"
 cat > "\$DESKTOP" <<DESKTOP
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=ChatGPT CEF V2
-Comment=Unofficial hardened ChatGPT CEF client for Linux
+Name=Remote Commander Browser
+Comment=Hardened native browser shell for ChatGPT and Remote Commander
 Exec=\$LAUNCHER
 TryExec=\$LAUNCHER
 Icon=applications-internet
@@ -71,6 +75,7 @@ StartupWMClass=ChatGPT-CEF-V2
 StartupNotify=false
 DESKTOP
 chmod 0644 "\$DESKTOP"
+rm -f "\$LEGACY_DESKTOP"
 echo "INSTALL=PASS"
 echo "RUNTIME=\$TARGET"
 echo "BINARY_SHA256=\$BIN_SHA"
@@ -80,7 +85,8 @@ cat > "$STAGE/uninstall.sh" <<UNINSTALL
 #!/usr/bin/env bash
 set -euo pipefail
 TARGET="\$HOME/.local/share/chatgpt-cef-v2/runtime-v${VERSION}"
-rm -f "\$HOME/.local/bin/chatgpt-cef-v2" "\$HOME/.local/share/applications/chatgpt-cef-v2.desktop"
+rm -f "\$HOME/.local/bin/remote-commander-browser" "\$HOME/.local/bin/chatgpt-cef-v2"
+rm -f "\$HOME/.local/share/applications/remote-commander-browser.desktop" "\$HOME/.local/share/applications/chatgpt-cef-v2.desktop"
 if [[ -d "\$TARGET" ]]; then
   [[ ! -e "\$TARGET/chrome-sandbox" ]] || sudo rm -f "\$TARGET/chrome-sandbox"
   rm -rf "\$TARGET"
@@ -91,10 +97,10 @@ UNINSTALL
 chmod 0755 "$STAGE/install.sh" "$STAGE/uninstall.sh"
 
 cat > "$STAGE/README.txt" <<'TXT'
-Unofficial third-party ChatGPT CEF client for Linux.
+Remote Commander Browser — cross-platform preview package.
 Run ./install.sh to install the runtime and configure Chromium's SUID sandbox.
 The installer requires sudo only to set chrome-sandbox to root:root mode 4755.
-The ChatGPT browser profile is stored separately under ~/.config/chatgpt-cef-v2.
+The legacy browser profile remains under ~/.config/chatgpt-cef-v2 and is not migrated; a legacy launcher alias is preserved.
 See NOTICE.md and THIRD_PARTY_NOTICES.md.
 TXT
 

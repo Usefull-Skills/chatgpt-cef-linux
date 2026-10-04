@@ -135,7 +135,7 @@ jobs:
       - name: Upload unsigned build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: chatgpt-cef-v2-linux-build
+          name: remote-commander-browser-linux-build
           path: |
             build/bin/
             build/BINARY_SHA256.txt

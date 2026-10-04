@@ -5,10 +5,17 @@ umask 077
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 VERSION=$(tr -d '[:space:]' < "$ROOT/VERSION")
 BUILD="$ROOT/build/bin"
-APPROOT="$HOME/.local/share/chatgpt-cef-v2"
+
+# rc.3 keeps the historical runtime/profile identity so existing authenticated
+# browser state is never copied or migrated implicitly during the product rename.
+LEGACY_ID="chatgpt-cef-v2"
+PRODUCT_ID="remote-commander-browser"
+APPROOT="$HOME/.local/share/$LEGACY_ID"
 RUNTIME="$APPROOT/runtime-v$VERSION"
-LAUNCHER="$HOME/.local/bin/chatgpt-cef-v2"
-DESKTOP="$HOME/.local/share/applications/chatgpt-cef-v2.desktop"
+LAUNCHER="$HOME/.local/bin/$PRODUCT_ID"
+LEGACY_LAUNCHER="$HOME/.local/bin/$LEGACY_ID"
+DESKTOP="$HOME/.local/share/applications/$PRODUCT_ID.desktop"
+LEGACY_DESKTOP="$HOME/.local/share/applications/$LEGACY_ID.desktop"
 
 [[ -x "$BUILD/chatgpt-cef-v2" ]] || { printf 'Build first: ./scripts/build-release.sh\n' >&2; exit 20; }
 [[ -f "$BUILD/chrome-sandbox" ]] || { printf 'Build output is missing chrome-sandbox.\n' >&2; exit 21; }
@@ -33,7 +40,7 @@ BIN="\$RUNTIME/chatgpt-cef-v2"
 SANDBOX="\$RUNTIME/chrome-sandbox"
 EXPECTED_BIN_SHA="$BIN_SHA"
 EXPECTED_SANDBOX_SHA="$SAN_SHA"
-fail(){ printf 'ChatGPT CEF V2: %s\\n' "\$1" >&2; exit "\$2"; }
+fail(){ printf 'Remote Commander Browser: %s\n' "\$1" >&2; exit "\$2"; }
 [[ -x "\$BIN" ]] || fail "executable missing" 20
 [[ -f "\$SANDBOX" ]] || fail "sandbox missing" 21
 read -r mode owner group < <(stat -Lc '%a %U %G' "\$SANDBOX")
@@ -45,12 +52,15 @@ exec "\$BIN" "\$@"
 LAUNCH
 chmod 0755 "$LAUNCHER"
 
+rm -f "$LEGACY_LAUNCHER"
+ln -s "$LAUNCHER" "$LEGACY_LAUNCHER"
+
 cat > "$DESKTOP" <<DESKTOP
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=ChatGPT CEF V2
-Comment=Unofficial hardened ChatGPT CEF client for Linux
+Name=Remote Commander Browser
+Comment=Hardened native browser shell for ChatGPT and Remote Commander
 Exec=$LAUNCHER
 TryExec=$LAUNCHER
 Icon=applications-internet
@@ -61,5 +71,7 @@ StartupNotify=false
 DESKTOP
 chmod 0644 "$DESKTOP"
 
-printf 'INSTALL=PASS\nRUNTIME=%s\nLAUNCHER=%s\nBINARY_SHA256=%s\n' "$RUNTIME" "$LAUNCHER" "$BIN_SHA"
-printf 'Profile data is stored separately at ~/.config/chatgpt-cef-v2 and is not modified by this installer.\n'
+rm -f "$LEGACY_DESKTOP"
+
+printf 'INSTALL=PASS\nRUNTIME=%s\nLAUNCHER=%s\nLEGACY_ALIAS=%s\nBINARY_SHA256=%s\n' "$RUNTIME" "$LAUNCHER" "$LEGACY_LAUNCHER" "$BIN_SHA"
+printf 'Legacy profile preserved at ~/.config/chatgpt-cef-v2; no session migration performed.\n'

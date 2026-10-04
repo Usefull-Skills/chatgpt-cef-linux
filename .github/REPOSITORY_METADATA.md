@@ -1,20 +1,25 @@
 # Repository metadata
 
-Suggested repository name: `chatgpt-cef-linux`
+Product name: **Remote Commander Browser**
+
+Target repository name: `remote-commander-browser`
+
+Current migration authority remains `Usefull-Skills/chatgpt-cef-linux` until the rc.3 exact tree is accepted and the repository migration is verified.
 
 Description:
 
-> Unofficial hardened native-shell ChatGPT client for Linux built with CEF, with multi-tab UX, Persian RTL, Voice/upload support, and origin-scoped permissions.
+> Hardened cross-platform native CEF browser shell for ChatGPT with multi-tab UX, Persian RTL, Voice/upload support, origin-scoped permissions, and a read-only Remote Commander companion.
 
 Suggested topics:
 
+- windows
 - linux
 - cpp
 - cef
 - chromium-embedded-framework
 - desktop-app
 - chatgpt
+- remote-commander
 - rtl
 - persian
-- x11
 - security

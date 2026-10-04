@@ -1,47 +1,60 @@
-# ChatGPT CEF V2 برای لینوکس
+# Remote Commander Browser
 
-یک کلاینت غیررسمی لینوکسی برای ChatGPT بر پایه Chromium Embedded Framework (CEF) با پوسته بومی، تب‌های native، پشتیبانی RTL فارسی/عربی، Voice/Mic، بازیابی نشست و رابط مدرن مینیمال.
+**Remote Commander Browser** یک پوستهٔ دسکتاپ native و چندسکویی برای ChatGPT بر پایهٔ Chromium Embedded Framework (CEF) است. برنامه تب‌های native، پشتیبانی RTL فارسی/عربی، Voice/Mic، بازیابی نشست و پنل فقط‌خواندنی Remote Commander را فراهم می‌کند.
 
-> این پروژه رسمی OpenAI نیست و توسط OpenAI پشتیبانی یا تأیید نشده است. برنامه فقط `https://chatgpt.com/` را با فرآیند ورود عادی ChatGPT نمایش می‌دهد.
+> این پروژه رسمی OpenAI نیست و توسط OpenAI پشتیبانی یا تأیید نشده است. برنامه `https://chatgpt.com/` را با فرایند ورود عادی ChatGPT باز می‌کند.
 
 ## نسخه فعلی
 
-**v0.8.0-rc.1 — Read-only companion preview / NOT STABLE**
+**v0.8.0-rc.3 — کاندید پیش‌نمایش Windows/Linux / هنوز Stable نیست**
 
-این نسخه با build کاملاً تازه، `-Werror`، static analysis، تست چرخه تب، shutdown کنترل‌شده، dependency audit، secret/privacy scan و تست‌های واقعی RTL/LTR، Upload، Clipboard، Voice و single-instance بررسی شده است.
+مسیرهای build و lifecycle ویندوز و لینوکس جداگانه qualify شده‌اند. نسخهٔ پایدار `v0.7.1` تا تکمیل CI دقیق rc.3، تست واقعی UI، اتصال Commander↔Browser، گفت‌وگوی آزمایشی ایزوله، بازیابی طولانی‌مدت و rollback نصب، مرجع بازگشت باقی می‌ماند.
 
 ## قابلیت‌های اصلی
 
-- پوسته native مبتنی بر CEF Views
+- پوسته native مبتنی بر CEF Views برای Windows و Linux/X11
 - پنجره frameless و چندتب
-- میانبرهای native
-- بازیابی atomic نشست
-- اجرای single-instance
+- میانبرهای native و بازیابی atomic نشست
+- single-instance
 - محدودسازی مجوزهای Media به origin دقیق ChatGPT
 - هدایت لینک‌های خارجی به مرورگر سیستم
-- فونت Vazirmatn برای فارسی، بدون قراردادن فایل فونت داخل مخزن
-- RTL خودکار برای فارسی و LTR برای انگلیسی/کد/ریاضی
-- sandbox فعال؛ استفاده از `--no-sandbox` توصیه نمی‌شود
+- Vazirmatn-first و RTL/LTR خودکار
+- پنل فقط‌خواندنی Remote Commander
+- محافظ ACL/فایل خصوصی native در ویندوز
+- sandbox و بسته‌بندی release محدود و قابل‌ممیزی
+
+## سازگاری و حفظ نشست
+
+نام محصول و artifactها به **Remote Commander Browser** تغییر می‌کند، اما در rc.3 شناسه‌های داخلی قدیمی عمداً حفظ می‌شوند:
+
+```text
+chatgpt-cef-v2
+~/.config/chatgpt-cef-v2/
+```
+
+این تصمیم برای جلوگیری از جابه‌جایی یا از دست رفتن session احراز هویت است. تغییر نام محصول به معنی کپی یا استخراج cookie/credential نیست.
 
 ## ساخت
+
+Linux:
 
 ```bash
 ./scripts/fetch-cef.sh
 ./scripts/build-release.sh
+./scripts/static-qa.sh
+./scripts/runtime-self-test.sh
 ```
 
-جزئیات در `docs/BUILDING.md` آمده است.
+Windows:
 
-## داده‌های حساب
-
-پروفایل اجرایی در مسیر زیر قرار می‌گیرد:
-
-```text
-~/.config/chatgpt-cef-v2/
+```powershell
+./scripts/fetch-cef-windows.ps1
+./scripts/build-windows.ps1
+./scripts/package-windows.ps1
 ```
 
-این پوشه می‌تواند session احراز هویت داشته باشد و نباید در Git یا فایل‌های اشتراکی قرار گیرد.
+## مخزن
 
-## برنامه آینده
+نام حرفه‌ای هدف برای مخزن: **`remote-commander-browser`**. مخزن فعلی تا پذیرش دقیق rc.3 و مهاجرت بدون شکستن PR/CI/remotes مرجع باقی می‌ماند.
 
-تمام ایده‌های آینده در `docs/FUTURE_FEATURES.md` طبقه‌بندی شده‌اند و پس از دسترسی Organization باید به Issueهای GitHub تبدیل شوند.
+جزئیات معماری و شواهد در `docs/ARCHITECTURE.md`، `docs/PROJECT_BRAIN.md` و `docs/PROJECT_KNOWLEDGE_EVIDENCE.md` ثبت می‌شود.

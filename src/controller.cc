@@ -333,7 +333,7 @@ void AppController::OnWindowCreated(CefRefPtr<CefWindow> window) {
   CEF_REQUIRE_UI_THREAD();
   window_ = window;
   window_created_ = true;
-  window_->SetTitle("ChatGPT");
+  window_->SetTitle("Remote Commander Browser");
   SetX11WindowClass(window_);
   BuildWindowUI();
   window_->CenterWindow(CefSize(1180, 620));
@@ -506,10 +506,11 @@ void AppController::BuildHeaderControls() {
     return button;
   };
 
-  auto brand = make_button(kBrandButton, "ChatGPT", kHeaderBg);
+  auto brand = make_button(kBrandButton, "RC Browser", kHeaderBg);
   brand->SetFontList(kUIBoldFont);
   brand->SetEnabledTextColors(kText);
-  brand->SetAccessibleName("ChatGPT application");
+  brand->SetAccessibleName("Remote Commander Browser");
+  brand->SetTooltipText("Remote Commander Browser");
   header_->AddChildView(brand);
   header_->AddChildView(tab_strip_);
   header_layout_->SetFlexForView(tab_strip_, 1);
