@@ -43,10 +43,18 @@ int wmain(int argc, wchar_t** argv) {
   std::string error;
   const std::string binding = companion::winprivate::ReadPrivateFile(
       root, "commander-binding.json", 65536, error);
-  if (!error.empty() || binding != "{\"binding\":true}\n")
+  if (!error.empty() || binding != "{\"binding\":true}")
     std::cerr << "WINDOWS_PRIVATE_GUARD_DIAG error=" << error
               << " bytes=" << binding.size() << "\n";
-  Check(error.empty() && binding == "{\"binding\":true}\n", "private_file_read");
+  Check(error.empty() && binding == "{\"binding\":true}", "private_file_read");
+
+  if (argc == 3) {
+    Check(std::wstring(argv[2]) == L"--expect-binding-reject", "reject_mode");
+    Check(binding.empty() && error == "FILE_UNSAFE_OR_OVERSIZE",
+          "broad_acl_binding_rejected");
+    std::cout << "WINDOWS_PRIVATE_GUARD_REJECT_PASS\n";
+    return 0;
+  }
 
   const std::wstring binding_path = root_w + L"\\commander-binding.json";
   const std::wstring hardlink_path = root_w + L"\\hardlink-alias.json";
@@ -66,7 +74,7 @@ int wmain(int argc, wchar_t** argv) {
   Check(snapshot.selected_name ==
         "commander-companion-0000000000002000-00000000-0000-4000-8000-000000000002.json",
         "latest_name");
-  Check(snapshot.bytes == "{\"snapshot\":2}\n", "latest_bytes");
+  Check(snapshot.bytes == "{\"snapshot\":2}", "latest_bytes");
 
   std::cout << "WINDOWS_PRIVATE_GUARD_PASS\n";
   return 0;
