@@ -219,13 +219,13 @@ int main(int argc, char** argv) {
   FileGuards(unknown);
 #elif defined(_WIN32)
   const auto windows_observation = companion::ReadObservation(companion::ProfileRoot());
-  Check(!windows_observation.valid && windows_observation.blocked &&
-        windows_observation.error == "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE",
-        "Windows companion observation fails closed until native ACL guard is qualified");
+  Check(!windows_observation.valid && !windows_observation.error.empty() &&
+        windows_observation.error != "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE",
+        "Windows companion observation uses the native guard and fails closed without an owner-private fixture");
   const auto windows_binding = companion::ReadNativeBinding(companion::ProfileRoot());
-  Check(!windows_binding.valid &&
-        windows_binding.error == "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE",
-        "Windows native binding fails closed until native ACL guard is qualified");
+  Check(!windows_binding.valid && !windows_binding.error.empty() &&
+        windows_binding.error != "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE",
+        "Windows native binding uses the native guard and fails closed without an owner-private fixture");
 #else
   std::cout << "UNPROVEN private-file guards on unsupported runtime\n";
 #endif
