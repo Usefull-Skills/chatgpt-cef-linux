@@ -198,7 +198,7 @@ bool PrivateAcl(HANDLE handle, bool directory) {
   for (DWORD i = 0; i < acl_info.AceCount; ++i) {
     void* raw_ace = nullptr;
     if (!GetAce(dacl, i, &raw_ace) || !raw_ace) { LocalFree(descriptor); return false; }
-    auto* header = static_cast<ACE_HEADER*>(raw_ace);
+    const auto* header = static_cast<const ACE_HEADER*>(raw_ace);
     if (header->AceType == ACCESS_ALLOWED_ACE_TYPE) {
       auto* ace = static_cast<ACCESS_ALLOWED_ACE*>(raw_ace);
       PSID ace_sid = reinterpret_cast<PSID>(&ace->SidStart);
