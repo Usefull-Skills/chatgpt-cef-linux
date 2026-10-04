@@ -1,0 +1,106 @@
+name: Publish v0.8.0-rc.3 prerelease once
+
+on:
+  push:
+    branches: [release/v0.8.0-rc.3-publisher]
+    paths:
+      - '.github/workflows/publish-v0.8.0-rc.3-once.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SOURCE_SHA: 6064c0693f917ad40211715cd4500249053a48fd
+      QUALIFIED_RUN: "37185012120"
+      TAG: v0.8.0-rc.3
+      VERSION: 0.8.0-rc.3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact source and qualified run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git cat-file -e "$SOURCE_SHA^{commit}"
+          test "$(git show "$SOURCE_SHA:VERSION" | tr -d '[:space:]')" = "$VERSION"
+          git cat-file -e "$SOURCE_SHA:docs/RELEASE_0.8.0-rc.3.md"
+          run_json=$(gh api "repos/$GH_REPO/actions/runs/$QUALIFIED_RUN")
+          test "$(jq -r .head_sha <<<"$run_json")" = "$SOURCE_SHA"
+          test "$(jq -r .status <<<"$run_json")" = completed
+          test "$(jq -r .conclusion <<<"$run_json")" = success
+
+      - name: Download exact qualified artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          rm -rf .qualified-artifacts
+          mkdir -p .qualified-artifacts/windows .qualified-artifacts/linux
+          gh run download "$QUALIFIED_RUN" --repo "$GH_REPO"             --name "chatgpt-cef-v2-v0.8.0-rc.3-windows-x86_64"             --dir .qualified-artifacts/windows
+          gh run download "$QUALIFIED_RUN" --repo "$GH_REPO"             --name "chatgpt-cef-v2-v0.8.0-rc.3-linux-x86_64"             --dir .qualified-artifacts/linux
+
+      - name: Package exact Linux binary and collect Windows package
+        run: |
+          set -euo pipefail
+          rm -rf build/bin dist
+          mkdir -p build/bin dist
+
+          linux_bin=$(find .qualified-artifacts/linux -type f -name chatgpt-cef-v2 -print -quit)
+          test -n "$linux_bin"
+          linux_root=$(dirname "$linux_bin")
+          cp -a "$linux_root"/. build/bin/
+          chmod 0755 build/bin/chatgpt-cef-v2
+          test -f build/bin/chrome-sandbox
+          chmod 0755 build/bin/chrome-sandbox
+
+          recorded=$(find .qualified-artifacts/linux -type f -name 'BINARY_SHA256-linux.txt' -print -quit)
+          test -n "$recorded"
+          expected=$(awk '{print $1}' "$recorded")
+          actual=$(sha256sum build/bin/chatgpt-cef-v2 | awk '{print $1}')
+          test "$actual" = "$expected"
+
+          ./scripts/fetch-cef.sh
+          ./scripts/package-release.sh
+
+          win_zip=$(find .qualified-artifacts/windows -type f -name 'chatgpt-cef-v2-v0.8.0-rc.3-windows-x86_64.zip' -print -quit)
+          test -n "$win_zip"
+          cp "$win_zip" dist/
+
+          git archive --format=tar.gz             --prefix="chatgpt-cef-v2-v0.8.0-rc.3-source/"             "$SOURCE_SHA" > dist/chatgpt-cef-v2-v0.8.0-rc.3-source.tar.gz
+
+          cd dist
+          sha256sum             chatgpt-cef-v2-v0.8.0-rc.3-linux-x86_64.tar.gz             chatgpt-cef-v2-v0.8.0-rc.3-windows-x86_64.zip             chatgpt-cef-v2-v0.8.0-rc.3-source.tar.gz             > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+          test "$(find . -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name 'SHA256SUMS.txt' \) | wc -l)" -eq 4
+
+      - name: Publish exact prerelease once
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+            test "$(git rev-parse "$TAG^{}")" = "$SOURCE_SHA"
+          else
+            git tag -a "$TAG" "$SOURCE_SHA" -m "ChatGPT CEF $TAG"
+            git push origin "refs/tags/$TAG"
+          fi
+          if gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo RELEASE_ALREADY_EXISTS
+            exit 0
+          fi
+          gh release create "$TAG"             dist/chatgpt-cef-v2-v0.8.0-rc.3-linux-x86_64.tar.gz             dist/chatgpt-cef-v2-v0.8.0-rc.3-windows-x86_64.zip             dist/chatgpt-cef-v2-v0.8.0-rc.3-source.tar.gz             dist/SHA256SUMS.txt             --repo "$GH_REPO" --verify-tag --prerelease             --title "ChatGPT CEF $TAG"             --notes-file docs/RELEASE_0.8.0-rc.3.md
+          gh release view "$TAG" --repo "$GH_REPO" --json tagName,isDraft,isPrerelease,url
