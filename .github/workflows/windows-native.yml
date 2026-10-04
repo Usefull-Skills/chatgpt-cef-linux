@@ -68,9 +68,9 @@ jobs:
             Set-Acl -LiteralPath $path -AclObject $acl
           }
           Set-PrivateAcl $root $true
-          [IO.File]::WriteAllText((Join-Path $root 'commander-binding.json'),('{"binding":true}'+[Environment]::NewLine),(New-Object Text.UTF8Encoding($false)))
-          [IO.File]::WriteAllText((Join-Path $root 'commander-companion-0000000000001000-00000000-0000-4000-8000-000000000001.json'),('{"snapshot":1}'+[Environment]::NewLine),(New-Object Text.UTF8Encoding($false)))
-          [IO.File]::WriteAllText((Join-Path $root 'commander-companion-0000000000002000-00000000-0000-4000-8000-000000000002.json'),('{"snapshot":2}'+[Environment]::NewLine),(New-Object Text.UTF8Encoding($false)))
+          [IO.File]::WriteAllText((Join-Path $root 'commander-binding.json'),('{"binding":true}'+[char]10),(New-Object Text.UTF8Encoding($false)))
+          [IO.File]::WriteAllText((Join-Path $root 'commander-companion-0000000000001000-00000000-0000-4000-8000-000000000001.json'),('{"snapshot":1}'+[char]10),(New-Object Text.UTF8Encoding($false)))
+          [IO.File]::WriteAllText((Join-Path $root 'commander-companion-0000000000002000-00000000-0000-4000-8000-000000000002.json'),('{"snapshot":2}'+[char]10),(New-Object Text.UTF8Encoding($false)))
           Get-ChildItem -LiteralPath $root -File | ForEach-Object { Set-PrivateAcl $_.FullName $false }
           $test=Get-ChildItem build-windows -Recurse -Filter windows-private-file-test.exe | Select-Object -First 1
           if(-not $test){ throw 'WINDOWS_PRIVATE_TEST_EXE_MISSING' }
