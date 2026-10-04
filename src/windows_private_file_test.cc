@@ -43,6 +43,9 @@ int wmain(int argc, wchar_t** argv) {
   std::string error;
   const std::string binding = companion::winprivate::ReadPrivateFile(
       root, "commander-binding.json", 65536, error);
+  if (!error.empty() || binding != "{\"binding\":true}\n")
+    std::cerr << "WINDOWS_PRIVATE_GUARD_DIAG error=" << error
+              << " bytes=" << binding.size() << "\n";
   Check(error.empty() && binding == "{\"binding\":true}\n", "private_file_read");
 
   const std::wstring binding_path = root_w + L"\\commander-binding.json";
