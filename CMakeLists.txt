@@ -5,8 +5,15 @@ project(chatgpt_cef_v2 LANGUAGES C CXX)
 option(CGWA_COMPANION_TESTS_ONLY "Build CEF-free companion contract tests only" OFF)
 if(CGWA_COMPANION_TESTS_ONLY)
   enable_testing()
-  add_executable(companion-contract-test src/commander_companion.cc src/commander_companion_test.cc)
+  set(COMPANION_CONTRACT_SRCS src/commander_companion.cc src/commander_companion_test.cc)
+  if(WIN32)
+    list(APPEND COMPANION_CONTRACT_SRCS src/windows_private_file.cc src/windows_private_file.h)
+  endif()
+  add_executable(companion-contract-test ${COMPANION_CONTRACT_SRCS})
   target_compile_features(companion-contract-test PRIVATE cxx_std_17)
+  if(WIN32)
+    target_link_libraries(companion-contract-test PRIVATE Advapi32)
+  endif()
   add_test(NAME companion-contract COMMAND companion-contract-test --fixture "${CMAKE_CURRENT_SOURCE_DIR}/src/companion-emitted-fixture.json")
   return()
 endif()
@@ -35,6 +42,9 @@ set(APP_SRCS
   src/commander_companion.cc
   src/commander_companion.h
 )
+if(WIN32)
+  list(APPEND APP_SRCS src/windows_private_file.cc src/windows_private_file.h)
+endif()
 
 if(WIN32)
   add_executable(chatgpt-cef-v2 WIN32 ${APP_SRCS})
@@ -46,7 +56,16 @@ target_compile_features(chatgpt-cef-v2 PRIVATE cxx_std_17)
 target_include_directories(chatgpt-cef-v2 PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CEF_ROOT}")
 target_link_libraries(chatgpt-cef-v2 PRIVATE libcef_lib libcef_dll_wrapper ${CEF_STANDARD_LIBS})
 if(WIN32)
-  target_link_libraries(chatgpt-cef-v2 PRIVATE Shell32)
+  target_link_libraries(chatgpt-cef-v2 PRIVATE Shell32 Advapi32)
+  add_executable(windows-private-file-test
+    src/windows_private_file.cc
+    src/windows_private_file.h
+    src/windows_private_file_test.cc)
+  target_compile_features(windows-private-file-test PRIVATE cxx_std_17)
+  target_include_directories(windows-private-file-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(windows-private-file-test PRIVATE Advapi32)
+  set_target_properties(windows-private-file-test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
 endif()
 
 set(APP_OUT_DIR "${CMAKE_BINARY_DIR}/bin")
