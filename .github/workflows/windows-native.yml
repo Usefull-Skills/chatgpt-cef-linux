@@ -2,7 +2,7 @@ name: Windows native preview
 
 on:
   push:
-    branches: [feature/v0.8.0-rc.2-windows]
+    branches: [feature/v0.8.0-rc.3-windows-private-guard]
   pull_request:
 
 permissions:
@@ -18,17 +18,60 @@ jobs:
       - name: Verify preview version
         shell: pwsh
         run: |
-          if((Get-Content VERSION -Raw).Trim() -ne '0.8.0-rc.2'){ throw 'VERSION mismatch' }
+          if((Get-Content VERSION -Raw).Trim() -ne '0.8.0-rc.3'){ throw 'VERSION mismatch' }
 
       - name: Companion contract tests (CEF-free)
         shell: pwsh
         run: |
           cmake.exe -S . -B build-contract -G 'Visual Studio 17 2022' -A x64 -DCGWA_COMPANION_TESTS_ONLY=ON
           if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
-          cmake.exe --build build-contract --config Release --target companion-contract-test -- /m
+          cmake.exe --build build-contract --config Release --target companion-contract-test windows-private-file-test -- /m
           if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
           ctest.exe --test-dir build-contract -C Release --output-on-failure
           if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+
+      - name: Exercise NTFS owner-private snapshot guard
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'cef-private-guard'
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $root
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          $user=[Security.Principal.WindowsIdentity]::GetCurrent().User
+          $system=New-Object Security.Principal.SecurityIdentifier('S-1-5-18')
+          $admins=New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')
+          function Set-PrivateAcl([string]$path,[bool]$directory) {
+            if($directory){ $acl=New-Object Security.AccessControl.DirectorySecurity }
+            else { $acl=New-Object Security.AccessControl.FileSecurity }
+            $acl.SetOwner($user)
+            $acl.SetAccessRuleProtection($true,$false)
+            $inherit=if($directory){[Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit'}else{[Security.AccessControl.InheritanceFlags]::None}
+            foreach($sid in @($user,$system,$admins)){
+              $rule=New-Object Security.AccessControl.FileSystemAccessRule(
+                $sid,[Security.AccessControl.FileSystemRights]::FullControl,
+                $inherit,[Security.AccessControl.PropagationFlags]::None,
+                [Security.AccessControl.AccessControlType]::Allow)
+              [void]$acl.AddAccessRule($rule)
+            }
+            Set-Acl -LiteralPath $path -AclObject $acl
+          }
+          Set-PrivateAcl $root $true
+          [IO.File]::WriteAllText((Join-Path $root 'commander-binding.json'),'{"binding":true}',(New-Object Text.UTF8Encoding($false)))
+          [IO.File]::WriteAllText((Join-Path $root 'commander-companion-0000000000001000-00000000-0000-4000-8000-000000000001.json'),'{"snapshot":1}',(New-Object Text.UTF8Encoding($false)))
+          [IO.File]::WriteAllText((Join-Path $root 'commander-companion-0000000000002000-00000000-0000-4000-8000-000000000002.json'),'{"snapshot":2}',(New-Object Text.UTF8Encoding($false)))
+          Get-ChildItem -LiteralPath $root -File | ForEach-Object { Set-PrivateAcl $_.FullName $false }
+          $test=Get-ChildItem build-contract -Recurse -Filter windows-private-file-test.exe | Select-Object -First 1
+          if(-not $test){ throw 'WINDOWS_PRIVATE_TEST_EXE_MISSING' }
+          & $test.FullName $root
+          if($LASTEXITCODE -ne 0){ throw "WINDOWS_PRIVATE_GUARD_FAIL:$LASTEXITCODE" }
+          $binding=Join-Path $root 'commander-binding.json'
+          $acl=Get-Acl -LiteralPath $binding
+          $world=New-Object Security.Principal.SecurityIdentifier('S-1-1-0')
+          $rule=New-Object Security.AccessControl.FileSystemAccessRule($world,'Read','Allow')
+          [void]$acl.AddAccessRule($rule)
+          Set-Acl -LiteralPath $binding -AclObject $acl
+          & $test.FullName $root --expect-binding-reject
+          if($LASTEXITCODE -ne 0){ throw "WINDOWS_BROAD_ACL_REJECT_FAIL:$LASTEXITCODE" }
 
       - name: Cache pinned CEF Windows dependency
         uses: actions/cache@v4
@@ -80,10 +123,10 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: chatgpt-cef-v2-v0.8.0-rc.2-windows-x86_64
+          name: chatgpt-cef-v2-v0.8.0-rc.3-windows-x86_64
           path: |
-            dist/chatgpt-cef-v2-v0.8.0-rc.2-windows-x86_64.zip
-            dist/SHA256SUMS-windows-v0.8.0-rc.2.txt
+            dist/chatgpt-cef-v2-v0.8.0-rc.3-windows-x86_64.zip
+            dist/SHA256SUMS-windows-v0.8.0-rc.3.txt
           if-no-files-found: error
 
 
@@ -138,7 +181,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: chatgpt-cef-v2-v0.8.0-rc.2-linux-x86_64
+          name: chatgpt-cef-v2-v0.8.0-rc.3-linux-x86_64
           path: |
             build/bin/
             build/BINARY_SHA256-linux.txt
