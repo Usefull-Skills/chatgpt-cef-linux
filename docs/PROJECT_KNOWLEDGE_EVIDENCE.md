@@ -12,3 +12,12 @@
 - **Rejected option:** merging the RC candidate into stable main before Windows/end-to-end evidence. Rejected to preserve stable v0.7.1 and avoid universal-update claims.
 - **Superseded state:** PR #51/#52 closed after preservation/versioning; Git history retained.
 - **Reuse targets:** Windows port, release runbook, Commander integration, final v0.8.0 acceptance.
+
+## 2026-10-05 — rc.3 Windows qualification and branding
+
+- Claim/Decision: Adopt Remote Commander Browser as user-facing product identity while preserving legacy stateful identifiers for rc.3 compatibility.
+- Evidence: reconciled isolated clone; git merge code auto-resolved with only PROJECT_BRAIN.md conflict; local Windows build completed with WINDOWS_BUILD_PASS.
+- Root Cause: user environment exported CC/CXX to LLVM clang; CEF Windows CMake assumes MSVC-style flags. build-windows.ps1 now selects VS cl.exe explicitly and removes inherited CC/CXX.
+- Regression: second build identified MSVC 19.51.36260.0 and completed 224/224; windows-private-file-test safe path PASS and broad ACL reject PASS; native lifecycle PASS; package PASS.
+- Artifact SHA-256: 81b2e5e1683197bebdc51c56cf1e6efbf74f070d9ce1248f24666f405da27ec1.
+- Confidence/Status: Confirmed / Candidate-qualified on local Windows host. Hosted and Linux gates still required.

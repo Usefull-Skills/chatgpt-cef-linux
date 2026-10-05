@@ -7,7 +7,7 @@ VERSION=$(tr -d '[:space:]' < "$ROOT/VERSION")
 BUILD="$ROOT/build/bin"
 CEF="$ROOT/.deps/cef"
 DIST="$ROOT/dist"
-NAME="chatgpt-cef-v2-v${VERSION}-linux-x86_64"
+NAME="remote-commander-browser-v${VERSION}-linux-x86_64"
 STAGE="$DIST/$NAME"
 ARCHIVE="$DIST/$NAME.tar.gz"
 
@@ -60,8 +60,8 @@ cat > "\$DESKTOP" <<DESKTOP
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=ChatGPT CEF V2
-Comment=Unofficial hardened ChatGPT CEF client for Linux
+Name=Remote Commander Browser
+Comment=Remote Commander Browser native CEF shell
 Exec=\$LAUNCHER
 TryExec=\$LAUNCHER
 Icon=applications-internet

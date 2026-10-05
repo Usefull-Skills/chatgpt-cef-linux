@@ -1,3 +1,7 @@
+# CEF 0.8.0-rc.1 preview — 2026-10-02
+
+Version the Saeid native companion and V03 source snapshots with explicit incomplete integration/platform gates. Stable automatic update is not enabled.
+
 # Changelog
 
 ## v0.7.1 — 2026-10-01

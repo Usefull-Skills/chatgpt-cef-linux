@@ -2,7 +2,7 @@
 
 ## Overview
 
-ChatGPT CEF V2 is a small native Linux host around Chromium Embedded Framework (CEF). The native process owns windowing, tabs, permission policy, navigation routing, session URL persistence, and lifecycle management. ChatGPT itself remains a web application loaded from `https://chatgpt.com/`.
+Remote Commander Browser is a small cross-platform native host around Chromium Embedded Framework (CEF). The native process owns windowing, tabs, permission policy, navigation routing, session URL persistence, and lifecycle management. ChatGPT itself remains a web application loaded from `https://chatgpt.com/`.
 
 ## Main components
 

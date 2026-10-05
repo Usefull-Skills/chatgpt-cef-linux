@@ -1,12 +1,12 @@
-# ChatGPT CEF V2 for Linux
+# Remote Commander Browser
 
-A hardened, native-shell Linux client for ChatGPT built with Chromium Embedded Framework (CEF), with native multi-tab controls, Persian/Arabic RTL support, voice/media permissions scoped to ChatGPT, session restore, and a modern minimal UI.
+A hardened, cross-platform native browser shell for Remote Commander workflows, built with Chromium Embedded Framework (CEF), with native multi-tab controls, Persian/Arabic RTL support, voice/media permissions scoped to ChatGPT, session restore, and a modern minimal UI.
 
 > **Unofficial project.** This software is not affiliated with or endorsed by OpenAI. It loads `https://chatgpt.com/` and uses the normal ChatGPT sign-in flow.
 
 ## Release status
 
-**v0.7.1 — Release Hardening**
+**v0.8.0-rc.1 — Read-only companion preview / NOT STABLE**
 
 The current release baseline has passed a clean-from-scratch build with strict warnings-as-errors, static analysis, isolated runtime tab-lifecycle self-test, staged shutdown verification, dependency checks, secret/privacy scanning, RTL/LTR acceptance, upload/clipboard/voice acceptance, and single-instance validation.
 

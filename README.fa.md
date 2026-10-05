@@ -6,7 +6,7 @@
 
 ## نسخه فعلی
 
-**v0.7.1 — Release Hardening**
+**v0.8.0-rc.1 — Read-only companion preview / NOT STABLE**
 
 این نسخه با build کاملاً تازه، `-Werror`، static analysis، تست چرخه تب، shutdown کنترل‌شده، dependency audit، secret/privacy scan و تست‌های واقعی RTL/LTR، Upload، Clipboard، Voice و single-instance بررسی شده است.
 

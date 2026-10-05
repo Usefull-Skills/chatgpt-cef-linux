@@ -1,0 +1,149 @@
+{
+  "schema": 1,
+  "observedAtUtc": "2026-10-02T18:36:46.812Z",
+  "publication": "DRAFT_SOURCE_SNAPSHOT_NO_MERGE_RELEASE_INSTALL",
+  "repo": "Usefull-Skills/chatgpt-cef-linux",
+  "parentCommit": "8e9e01e065d8b2e4ea07ce10d41738715ab5371b",
+  "parentTree": "e4c3fd91d1151e409d7de94684b54cfef2495ccb",
+  "branch": "feature/native-commander-companion-v01-20261001",
+  "qualification": {
+    "runtime": "v24.19.0",
+    "platform": "win32",
+    "syntaxFiles": 17,
+    "backend": {
+      "tests": 100,
+      "pass": 100,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "exitCode": 0,
+      "scope": "ISOLATED_NEW_COPY_INJECTED_PRIVATE_VERIFIERS_NOT_NATIVE_HOST_ACCEPTANCE"
+    },
+    "pausedDomainPolicy": {
+      "pass": 27,
+      "fail": 0,
+      "exitCode": 0,
+      "scope": "PURE_POLICY_NO_GAME_VIDEO_EXECUTION"
+    },
+    "cefSource": {
+      "checks": 1457,
+      "exitCode": 0,
+      "scope": "SOURCE_ONLY_NOT_NATIVE_COMPILATION"
+    },
+    "q5": "SYNTAX_ONLY_DO_NOT_RUN",
+    "operationalAutonomy": "UNPROVEN",
+    "whole": "NOT_FINAL"
+  },
+  "files": [
+    {
+      "path": "experimental/companion-monitor-v03/overlay/src/controller.cc",
+      "bytes": 49464,
+      "sha256": "3e736773e7a658fa6afc5a4654f01cf33e14784b9d6fd9758172b76deecb6271",
+      "gitBlobSha": "cb99b7ce159c989b8e5241cb5c2fa4375b1588f9",
+      "scope": "SOURCE_ONLY_NO_NATIVE_V03_ACCEPTANCE"
+    },
+    {
+      "path": "experimental/companion-monitor-v03/overlay/src/controller.h",
+      "bytes": 4939,
+      "sha256": "554ca09136951c77543a01eb4189140e726c2aee6588dddc57af5ada6570d525",
+      "gitBlobSha": "82dcfde2dd140405da4aae8be96fa712b304e69b",
+      "scope": "SOURCE_ONLY_NO_NATIVE_V03_ACCEPTANCE"
+    },
+    {
+      "path": "experimental/companion-monitor-v03/overlay/src/companion_monitor.h",
+      "bytes": 3088,
+      "sha256": "1189872fe1d83040b77fde56d272a0415f2ec340be4b08f685e90facc6cbdeb9",
+      "gitBlobSha": "7ca7590f666a268e1bb94048a3381b95b0daa740",
+      "scope": "SOURCE_ONLY_NO_NATIVE_V03_ACCEPTANCE"
+    },
+    {
+      "path": "experimental/companion-monitor-v03/overlay/src/commander_companion.cc",
+      "bytes": 38659,
+      "sha256": "e93274db37ad17d2087cf9d865105fa31f81d2dd07b1cdb0771a4e3e7f265f0b",
+      "gitBlobSha": "2df2bd4ad7f3ac52419663d39f5b781ada0def98",
+      "scope": "SOURCE_ONLY_NO_NATIVE_V03_ACCEPTANCE"
+    },
+    {
+      "path": "experimental/companion-monitor-v03/overlay/src/commander_companion.h",
+      "bytes": 2592,
+      "sha256": "b90349588850d94fdc5a6d3ef8382a2e86531f81122268a853830e2e53f662db",
+      "gitBlobSha": "0ac36d8527c645f826dbc30608c040a3004f2fe4",
+      "scope": "SOURCE_ONLY_NO_NATIVE_V03_ACCEPTANCE"
+    },
+    {
+      "path": "experimental/companion-monitor-v03/overlay/src/commander_companion_test.cc",
+      "bytes": 21160,
+      "sha256": "bc1cd729c1b780e091691b990aaed595064dc9a2acb345dfc7cd84f95dce9bf7",
+      "gitBlobSha": "a581d58fea423613ca68c338d7fd66bfd3a982f4",
+      "scope": "SOURCE_ONLY_NO_NATIVE_V03_ACCEPTANCE"
+    },
+    {
+      "path": "experimental/companion-monitor-v03/overlay/src/companion-emitted-fixture.json",
+      "bytes": 1273,
+      "sha256": "a9e05da0274e582e7b4e4b5ff626213264c893bc531cd75e8e0324ed80a10f38",
+      "gitBlobSha": "517873bcf30dd794853abb99c41e592a8d90a95d",
+      "scope": "SOURCE_ONLY_NO_NATIVE_V03_ACCEPTANCE"
+    },
+    {
+      "path": "experimental/companion-monitor-v03/overlay/test/companion_monitor_test.cc",
+      "bytes": 4184,
+      "sha256": "694e40895e0055f2fa6a055f9cd4f1b9df551b4d69efae577150ab5526a1b28c",
+      "gitBlobSha": "264ad6df8571370a601634d1bac5c9488a9f5116",
+      "scope": "SOURCE_ONLY_NO_NATIVE_V03_ACCEPTANCE"
+    },
+    {
+      "path": "experimental/companion-monitor-v03/overlay/test/companion_monitor_source_test.cjs",
+      "bytes": 10012,
+      "sha256": "785e5f88f595a9a1c564af1e8c2d04dc9f049752ece27b24fe1f9edfcb236ce4",
+      "gitBlobSha": "00612b26ffd512ad423ffe84fd056345b9ec2871",
+      "scope": "SOURCE_ONLY_NO_NATIVE_V03_ACCEPTANCE"
+    },
+    {
+      "path": "experimental/companion-monitor-v03/overlay/CMakeLists.txt",
+      "bytes": 2381,
+      "sha256": "7dfd9bc3f9c5b6bca4286309e8d3173686f95d26c0b58c3d98d7f88dcacf8000",
+      "gitBlobSha": "3b150dacd4de68b71d818b905011bf3880b89335",
+      "scope": "SOURCE_ONLY_NO_NATIVE_V03_ACCEPTANCE"
+    },
+    {
+      "path": "experimental/companion-monitor-v03/overlay/.github/workflows/build.yml",
+      "bytes": 6593,
+      "sha256": "af5c957e51b76321bcba7518237bc3a8a07c2d8398678f24290371236a70893f",
+      "gitBlobSha": "9c67b5527ae686b91eb10cb43cdd4a3384a47bea",
+      "scope": "SOURCE_ONLY_NO_NATIVE_V03_ACCEPTANCE"
+    },
+    {
+      "path": "docs/PROGRESS_20261002_FA.md",
+      "bytes": 3381,
+      "sha256": "8cc18b2acaa8e2bb81401d8accbb4d781a379a79886631e0cb8b53fa4ca317f9",
+      "gitBlobSha": "414fa419638fc308082ac886f78b86aac05ace5b",
+      "scope": "PUBLIC_REPORT"
+    },
+    {
+      "path": "experimental/companion-monitor-v03/README.md",
+      "bytes": 1029,
+      "sha256": "d02a0301c2c6b86f0a5c555ec359a2c709ddd2769cfac4b4ca64e6be51310590",
+      "gitBlobSha": "a0a27ab3f59d4f170db45ef725a4ffdf40bf2669",
+      "scope": "PUBLIC_SCOPE"
+    }
+  ],
+  "excluded": [
+    "live configuration",
+    "credentials",
+    "databases",
+    "browser profiles",
+    "real chats",
+    "voice input",
+    "raw machine logs",
+    "local control history",
+    "private installation runners",
+    "Return and Master archives"
+  ],
+  "game": "USER_PAUSED",
+  "video": "USER_PAUSED",
+  "otherHosts": "EXCLUDED",
+  "heartbeat": "CANCELLED_DO_NOT_REACTIVATE",
+  "whole": "NOT_FINAL",
+  "promotion": false,
+  "installedCore": "v0.10.5 separate official source"
+}

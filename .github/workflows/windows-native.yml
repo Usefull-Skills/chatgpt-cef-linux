@@ -1,0 +1,203 @@
+name: Windows native preview
+
+on:
+  push:
+    branches: [feature/v0.8.0-rc.2-windows]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-native:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify preview version
+        shell: pwsh
+        run: |
+          if((Get-Content VERSION -Raw).Trim() -ne '0.8.0-rc.3'){ throw 'VERSION mismatch' }
+
+      - name: Companion contract tests (CEF-free)
+        shell: pwsh
+        run: |
+          cmake.exe -S . -B build-contract -G 'Visual Studio 17 2022' -A x64 -DCGWA_COMPANION_TESTS_ONLY=ON
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+          cmake.exe --build build-contract --config Release --target companion-contract-test -- /m
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+          ctest.exe --test-dir build-contract -C Release --output-on-failure
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+
+      - name: Cache pinned CEF Windows dependency
+        uses: actions/cache@v4
+        with:
+          path: .deps/cef-windows
+          key: cef-windows-154.0.32-aa1f7ab28005307edcc13f95e3ce5cd9d221894b00458fb5e368c00603204a2a
+
+      - name: Fetch pinned CEF and build
+        shell: pwsh
+        run: |
+          ./scripts/build-windows.ps1
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+
+      - name: Exercise native Windows private-file ACL guard
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'cef-private-guard'
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $root
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          $user=[Security.Principal.WindowsIdentity]::GetCurrent().User
+          $system=New-Object Security.Principal.SecurityIdentifier('S-1-5-18')
+          $admins=New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')
+          function Set-PrivateAcl([string]$path,[bool]$directory) {
+            if($directory){ $acl=New-Object Security.AccessControl.DirectorySecurity }
+            else { $acl=New-Object Security.AccessControl.FileSecurity }
+            $acl.SetOwner($user)
+            $acl.SetAccessRuleProtection($true,$false)
+            $inherit=if($directory){[Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit'}else{[Security.AccessControl.InheritanceFlags]::None}
+            foreach($sid in @($user,$system,$admins)){
+              $rule=New-Object Security.AccessControl.FileSystemAccessRule(
+                $sid,[Security.AccessControl.FileSystemRights]::FullControl,
+                $inherit,[Security.AccessControl.PropagationFlags]::None,
+                [Security.AccessControl.AccessControlType]::Allow)
+              [void]$acl.AddAccessRule($rule)
+            }
+            Set-Acl -LiteralPath $path -AclObject $acl
+          }
+          Set-PrivateAcl $root $true
+          [IO.File]::WriteAllText((Join-Path $root 'commander-binding.json'),('{"binding":true}'+[char]10),(New-Object Text.UTF8Encoding($false)))
+          [IO.File]::WriteAllText((Join-Path $root 'commander-companion-0000000000001000-00000000-0000-4000-8000-000000000001.json'),('{"snapshot":1}'+[char]10),(New-Object Text.UTF8Encoding($false)))
+          [IO.File]::WriteAllText((Join-Path $root 'commander-companion-0000000000002000-00000000-0000-4000-8000-000000000002.json'),('{"snapshot":2}'+[char]10),(New-Object Text.UTF8Encoding($false)))
+          Get-ChildItem -LiteralPath $root -File | ForEach-Object { Set-PrivateAcl $_.FullName $false }
+          $test=Get-ChildItem build-windows -Recurse -Filter windows-private-file-test.exe | Select-Object -First 1
+          if(-not $test){ throw 'WINDOWS_PRIVATE_TEST_EXE_MISSING' }
+          & $test.FullName $root
+          if($LASTEXITCODE -ne 0){ throw "WINDOWS_PRIVATE_GUARD_FAIL:$LASTEXITCODE" }
+          $binding=Join-Path $root 'commander-binding.json'
+          $acl=Get-Acl -LiteralPath $binding
+          $world=New-Object Security.Principal.SecurityIdentifier('S-1-1-0')
+          $rule=New-Object Security.AccessControl.FileSystemAccessRule($world,'Read','Allow')
+          [void]$acl.AddAccessRule($rule)
+          Set-Acl -LiteralPath $binding -AclObject $acl
+          & $test.FullName $root --expect-binding-reject
+          if($LASTEXITCODE -ne 0){ throw "WINDOWS_BROAD_ACL_REJECT_FAIL:$LASTEXITCODE" }
+
+      - name: Native Windows lifecycle self-test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $exe=(Resolve-Path 'build-windows/bin/chatgpt-cef-v2.exe').Path
+          $profile=Join-Path $env:RUNNER_TEMP 'cgwa-win-native-profile'
+          $log=Join-Path $profile 'chrome_debug.log'
+          New-Item -ItemType Directory -Force $profile | Out-Null
+          $user=[Security.Principal.WindowsIdentity]::GetCurrent().User
+          $system=New-Object Security.Principal.SecurityIdentifier('S-1-5-18')
+          $admins=New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')
+          $acl=New-Object Security.AccessControl.DirectorySecurity
+          $acl.SetOwner($user)
+          $acl.SetAccessRuleProtection($true,$false)
+          foreach($sid in @($user,$system,$admins)){
+            $rule=New-Object Security.AccessControl.FileSystemAccessRule(
+              $sid,[Security.AccessControl.FileSystemRights]::FullControl,
+              [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit',
+              [Security.AccessControl.PropagationFlags]::None,
+              [Security.AccessControl.AccessControlType]::Allow)
+            [void]$acl.AddAccessRule($rule)
+          }
+          Set-Acl -LiteralPath $profile -AclObject $acl
+          $args=@(
+            "--cgwa-profile-dir=$profile",
+            '--background-test',
+            '--self-test',
+            '--companion-self-test',
+            '--shutdown-self-test',
+            '--disable-gpu',
+            '--host-resolver-rules=MAP * ~NOTFOUND',
+            "--log-file=$log"
+          )
+          $p=Start-Process -FilePath $exe -ArgumentList $args -PassThru
+          if(-not $p.WaitForExit(30000)){
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            throw 'native lifecycle timeout'
+          }
+          if($p.ExitCode -ne 0){ throw "native exit=$($p.ExitCode)" }
+          if(!(Test-Path $log)){ throw 'native log missing' }
+          $text=Get-Content -LiteralPath $log -Raw
+          foreach($marker in @('CGWA_COMPANION_SELFTEST PASS','CGWA_SELFTEST PASS','CGWA_SHUTDOWN FINALIZE','CGWA_SHUTDOWN WINDOW_DESTROYED')){
+            if(-not $text.Contains($marker)){ throw "missing marker: $marker" }
+          }
+          if($text -match 'CGWA_COMPANION_SELFTEST FAIL|CGWA_SELFTEST FAIL|FATAL|stack smashing'){ throw 'native failure marker present' }
+          Write-Output 'WINDOWS_NATIVE_LIFECYCLE_PASS'
+
+      - name: Package Windows preview
+        shell: pwsh
+        run: ./scripts/package-windows.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: remote-commander-browser-v0.8.0-rc.3-windows-x86_64
+          path: |
+            dist/remote-commander-browser-v0.8.0-rc.3-windows-x86_64.zip
+            dist/SHA256SUMS-windows-v0.8.0-rc.3.txt
+          if-no-files-found: error
+
+
+  linux-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y             build-essential cmake ninja-build curl bzip2 cppcheck             libgtk-3-dev libnss3-dev libx11-dev libxcomposite-dev             libxdamage-dev libxext-dev libxfixes-dev libxrandr-dev             libgbm-dev libpango1.0-dev libcups2-dev libdrm-dev             libasound2-dev fonts-vazirmatn xvfb xauth
+
+      - name: Static QA
+        run: ./scripts/static-qa.sh
+
+      - name: Companion contract tests
+        run: |
+          cmake -S . -B build-contract -G Ninja -DCGWA_COMPANION_TESTS_ONLY=ON
+          cmake --build build-contract
+          ctest --test-dir build-contract --output-on-failure
+
+      - name: Build Linux native release
+        run: |
+          ./scripts/fetch-cef.sh
+          ./scripts/build-release.sh
+          if ldd build/bin/chatgpt-cef-v2 | grep -q 'not found'; then
+            ldd build/bin/chatgpt-cef-v2 | grep 'not found'
+            exit 1
+          fi
+
+      - name: Linux native lifecycle self-test
+        shell: bash
+        run: |
+          set -euo pipefail
+          companion_ci_sandbox=$(realpath build/bin/chrome-sandbox)
+          test "$companion_ci_sandbox" = "$GITHUB_WORKSPACE/build/bin/chrome-sandbox"
+          sudo chown root:root "$companion_ci_sandbox"
+          sudo chmod 4755 "$companion_ci_sandbox"
+          profile=$(mktemp -d /tmp/cgwa-rc2-linux.XXXXXX)
+          trap 'rm -rf -- "$profile"' EXIT
+          mkdir -p .qa
+          xvfb-run -a timeout 20 build/bin/chatgpt-cef-v2             --cgwa-profile-dir="$profile" --background-test             --log-file="$profile/chrome_debug.log"             --self-test --companion-self-test --shutdown-self-test             '--host-resolver-rules=MAP * ~NOTFOUND' >.qa/native-linux.out 2>&1
+          cp "$profile/chrome_debug.log" .qa/native-linux-chrome.log
+          grep -q 'CGWA_COMPANION_SELFTEST PASS' .qa/native-linux-chrome.log
+          grep -q 'CGWA_SELFTEST PASS' .qa/native-linux-chrome.log
+          grep -q 'CGWA_SHUTDOWN FINALIZE' .qa/native-linux-chrome.log
+          grep -q 'CGWA_SHUTDOWN WINDOW_DESTROYED' .qa/native-linux-chrome.log
+          ! grep -Eq 'FATAL|GPU process isn.t usable|segfault|stack smashing|trap|CGWA_COMPANION_SELFTEST FAIL|CGWA_SELFTEST FAIL' .qa/native-linux-chrome.log
+          sha256sum build/bin/chatgpt-cef-v2 | tee build/BINARY_SHA256-linux.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: remote-commander-browser-v0.8.0-rc.3-linux-x86_64
+          path: |
+            build/bin/
+            build/BINARY_SHA256-linux.txt
+          if-no-files-found: error

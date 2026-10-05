@@ -1,11 +1,13 @@
 #pragma once
 
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "client.h"
 #include "commander_companion.h"
+#include "companion_monitor.h"
 #include "include/cef_browser.h"
 #include "include/cef_client.h"
 #include "include/views/cef_box_layout.h"
@@ -82,6 +84,7 @@ class AppController {
   class ButtonDelegateImpl;
   class BrowserViewDelegateImpl;
   class FixedPanelDelegate;
+  struct CompanionRead;
 
   void BuildWindowUI();
   void BuildHeaderControls();
@@ -94,6 +97,8 @@ class AppController {
   void RefreshCompanion();
   void UpdateCompanionPanel();
   void CompanionTick();
+  void StartCompanionMonitor();
+  void ScheduleCompanionTick();
   void RunCompanionSelfTest();
   void SaveSessionState();
   Tab* FindTabById(int tab_id);
@@ -116,6 +121,11 @@ class AppController {
   std::vector<CefRefPtr<CefLabelButton>> companion_rows_;
   companion::Observation companion_observation_;
   companion::NativeBinding companion_binding_;
+  companion::MonitorSchedule companion_monitor_;
+  std::shared_ptr<CompanionRead> companion_read_;
+  std::string companion_profile_root_;
+  uint64_t companion_owner_id_ = 0;
+  uint64_t companion_observation_watermark_ = 0;
   CefRefPtr<CefBoxLayout> window_layout_;
   CefRefPtr<CefBoxLayout> header_layout_;
   CefRefPtr<CefBoxLayout> tab_layout_;

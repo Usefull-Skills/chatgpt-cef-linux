@@ -20,17 +20,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Build CEF-free contract gate with sanitizers
+      - name: Source-only monitor guards (not native acceptance)
+        run: |
+          mkdir -p .qa
+          node --version | tee .qa/companion-monitor-node.out
+          node test/companion_monitor_source_test.cjs | tee .qa/companion-monitor-source.out
+      - name: Build CEF-free contract and scheduler gates with sanitizers
         run: |
           mkdir -p .qa
           c++ --version | tee .qa/companion-compiler.out
           cmake --version | tee .qa/companion-cmake.out
-          sha256sum src/commander_companion.cc src/commander_companion_test.cc src/companion-emitted-fixture.json | tee .qa/companion-source-sha256.out
+          sha256sum src/commander_companion.cc src/commander_companion_test.cc src/companion-emitted-fixture.json src/companion_monitor.h test/companion_monitor_test.cc test/companion_monitor_source_test.cjs | tee .qa/companion-source-sha256.out
           cmake -S . -B build-companion -G Ninja \
             -DCGWA_COMPANION_TESTS_ONLY=ON -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_FLAGS='-Wall -Wextra -Wpedantic -Werror -fsanitize=address,undefined -fno-omit-frame-pointer'
           cmake --build build-companion -j2
-      - name: Run native contract and Linux private-file guards
+      - name: Run CEF-free contract, scheduling and Linux private-file guards
         env:
           ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
@@ -112,15 +117,16 @@ jobs:
           fi
           [[ "$companion_ci_rc" -eq 0 ]] || { echo "NATIVE_RUNTIME_FAIL rc=$companion_ci_rc"; exit 34; }
           [[ -f .qa/companion-native-chrome.log ]] || { echo 'Native log missing'; exit 35; }
-          grep -q 'CGWA_COMPANION_SELFTEST PASS' .qa/companion-native-chrome.log
+          grep -q 'CGWA_COMPANION_LAYOUT_SELFTEST PASS' .qa/companion-native-chrome.log
           grep -q 'CGWA_SELFTEST PASS' .qa/companion-native-chrome.log
           grep -q 'CGWA_SHUTDOWN FINALIZE' .qa/companion-native-chrome.log
           grep -q 'CGWA_SHUTDOWN WINDOW_DESTROYED' .qa/companion-native-chrome.log
-          if grep -Eq 'FATAL|GPU process isn.t usable|segfault|stack smashing|trap|CGWA_COMPANION_SELFTEST FAIL' .qa/companion-native-chrome.log; then
+          if grep -Eq 'FATAL|GPU process isn.t usable|segfault|stack smashing|trap|CGWA_COMPANION_LAYOUT_SELFTEST (FAIL|WAIT_)|CGWA_COMPANION_MONITOR (TICKET_UNRECONCILED|FILE_TASK_POST_FAILED|UI_TASK_POST_FAILED)' .qa/companion-native-chrome.log; then
             echo 'Native runtime error marker; gate failed'
             exit 33
           fi
-          echo 'COMPANION_NATIVE_RUNTIME=PASS (isolated unauthenticated profile; no session/tool authority claim)'
+          echo 'COMPANION_NATIVE_LAYOUT_AND_LIFECYCLE=PASS (isolated unauthenticated profile; no session/tool authority claim)'
+          echo 'COMPANION_MONITOR_RUNTIME=UNPROVEN; VALID_INVALID_EPOCH_BLOCKED_IO_LONG_DURATION_GATES_OPEN' | tee .qa/companion-monitor-acceptance.out
 
       - name: Preserve native runtime evidence even on failure
         if: always()
@@ -132,7 +138,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Upload unsigned build artifact
+      - name: Upload unsigned candidate (monitor runtime remains unqualified)
         uses: actions/upload-artifact@v4
         with:
           name: chatgpt-cef-v2-linux-build
@@ -140,5 +146,7 @@ jobs:
             build/bin/
             build/BINARY_SHA256.txt
             build/CEF_ARCHIVE_SHA256.txt
+            .qa/companion-monitor-acceptance.out
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
