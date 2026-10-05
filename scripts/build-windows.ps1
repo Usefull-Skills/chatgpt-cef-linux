@@ -49,10 +49,12 @@ foreach($line in $envLines){
 
 $Ninja=(Get-Command ninja.exe -ErrorAction Stop).Source
 $CMake=(Get-Command cmake.exe -ErrorAction Stop).Source
-Write-Output "WINDOWS_BUILD_STAGE tools cmake=$CMake ninja=$Ninja"
+$Cl=(Get-Command cl.exe -ErrorAction Stop).Source
+Remove-Item Env:CC,Env:CXX -ErrorAction SilentlyContinue
+Write-Output "WINDOWS_BUILD_STAGE tools cmake=$CMake ninja=$Ninja cl=$Cl"
 
 Write-Output "WINDOWS_BUILD_STAGE configure-generator=Ninja parallel=$Parallel started=$([DateTime]::UtcNow.ToString('o'))"
-& $CMake -S $Root -B $Build -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCEF_ROOT=$CefRootCmake"
+& $CMake -S $Root -B $Build -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCEF_ROOT=$CefRootCmake" "-DCMAKE_C_COMPILER=$Cl" "-DCMAKE_CXX_COMPILER=$Cl"
 if($LASTEXITCODE -ne 0){ throw "Ninja configure failed exit=$LASTEXITCODE" }
 
 Write-Output "WINDOWS_BUILD_STAGE compile parallel=$Parallel started=$([DateTime]::UtcNow.ToString('o'))"

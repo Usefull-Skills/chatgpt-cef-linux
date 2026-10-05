@@ -18,7 +18,7 @@ jobs:
       - name: Verify preview version
         shell: pwsh
         run: |
-          if((Get-Content VERSION -Raw).Trim() -ne '0.8.0-rc.2'){ throw 'VERSION mismatch' }
+          if((Get-Content VERSION -Raw).Trim() -ne '0.8.0-rc.3'){ throw 'VERSION mismatch' }
 
       - name: Companion contract tests (CEF-free)
         shell: pwsh
@@ -138,10 +138,10 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: chatgpt-cef-v2-v0.8.0-rc.2-windows-x86_64
+          name: remote-commander-browser-v0.8.0-rc.3-windows-x86_64
           path: |
-            dist/chatgpt-cef-v2-v0.8.0-rc.2-windows-x86_64.zip
-            dist/SHA256SUMS-windows-v0.8.0-rc.2.txt
+            dist/remote-commander-browser-v0.8.0-rc.3-windows-x86_64.zip
+            dist/SHA256SUMS-windows-v0.8.0-rc.3.txt
           if-no-files-found: error
 
 
@@ -196,7 +196,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: chatgpt-cef-v2-v0.8.0-rc.2-linux-x86_64
+          name: remote-commander-browser-v0.8.0-rc.3-linux-x86_64
           path: |
             build/bin/
             build/BINARY_SHA256-linux.txt

@@ -49,8 +49,8 @@ cat > "$DESKTOP" <<DESKTOP
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=ChatGPT CEF V2
-Comment=Unofficial hardened ChatGPT CEF client for Linux
+Name=Remote Commander Browser
+Comment=Remote Commander Browser native CEF shell
 Exec=$LAUNCHER
 TryExec=$LAUNCHER
 Icon=applications-internet
