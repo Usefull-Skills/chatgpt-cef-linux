@@ -52,3 +52,13 @@
 - Decision: no second rendering engine. Prefer CEF-native in-process DevTools APIs for any future visible-browser instrumentation; keep Commander background automation isolated from the authenticated Browser profile. A second engine requires a concrete compatibility failure plus evidence that it resolves the failure.
 - Confidence/Status: CONFIRMED/HIGH for local Windows drag geometry, lifecycle, package and production-profile separation. Hosted exact-head Windows+Linux CI and release promotion remain OPEN.
 - Reuse Targets: Browser architecture, release notes, session-safety policy, Commander Browser integration, QA.
+
+### 2026-10-06 — Windows standalone installer and session-safe rc.5 qualification
+
+- **Objective:** make Remote Commander Browser installable as one standalone Windows Setup and as an optional Commander component without mutating the authenticated Chromium profile.
+- **Delta:** Windows CEF extraction no longer requires 7-Zip; `tar.exe` is the built-in fallback. `scripts/install-windows.ps1` accepts explicit source/version/install/companion paths and a QA-only `-NoPublicIntegration` mode while preserving production defaults. The standalone Inno Setup embeds the native payload, verified PowerShell prerequisite bootstrap, installer script and branding.
+- **Security/session evidence:** isolated script-level install and the actual Setup EXE both completed with protected companion ACL and exact product manifest. Fingerprints for production `Local State`, `Default\\Network\\Cookies`, and `Default\\Login Data` remained unchanged. No authenticated profile was launched or copied during qualification.
+- **Local rc.5 qualification:** CEF-free companion contract 1/1 PASS; Windows private-file guard PASS; native lifecycle self-test PASS; Windows ZIP package PASS; standalone Setup compile PASS; silent isolated Setup acceptance PASS. Native exe SHA-256 `1b43d6ef084c24baa42566df8e1910f62dff665b0717fb3f2a0e3f587b706e34`; rc.5 Windows ZIP SHA-256 `2e91ba31a316469b833cfc50ea472b9f8a8bfc0bd6f47fb435686d5888a5abbe`; standalone Setup SHA-256 `86162caa43a6ad265b677636072badaf49311b9abe476188d7943c76a592288f`.
+- **CI prevention:** Windows workflow now builds the Setup and performs a silent isolated install with manifest and ACL readback. Windows and Linux native gates remain required on exact head before promotion.
+- **Signing status:** no valid local Code Signing certificate with private key is installed. The Setup is therefore `NotSigned`; self-signing is not treated as a substitute for public publisher trust. This is an **EXTERNAL/MISSING signing authority**, not a hidden PASS.
+- **Status:** local implementation = CONFIRMED PASS; hosted exact-head CI/release = OPEN.

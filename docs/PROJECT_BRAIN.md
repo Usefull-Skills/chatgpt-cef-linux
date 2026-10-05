@@ -57,3 +57,15 @@ System.Object[]
 - Decision: no second rendering engine. Prefer CEF-native in-process DevTools APIs for any future visible-browser instrumentation; keep Commander background automation isolated from the authenticated Browser profile. A second engine requires a concrete compatibility failure plus evidence that it resolves the failure.
 - Confidence/Status: CONFIRMED/HIGH for local Windows drag geometry, lifecycle, package and production-profile separation. Hosted exact-head Windows+Linux CI and release promotion remain OPEN.
 - Reuse Targets: Browser architecture, release notes, session-safety policy, Commander Browser integration, QA.
+
+### 2026-10-06 — Browser rc.5 standalone installer candidate
+
+**Previous accepted state:** main/rc.4 had session-safe native Browser and read-only Commander companion, but no official standalone Setup EXE and Windows build required 7-Zip when extracting CEF.
+
+**Current delta:** rc.5 candidate builds a native Windows Browser, ZIP package and standalone Inno Setup; the actual Setup completed isolated silent install with private companion ACL and zero production session-file changes. Windows CI now includes Setup build/install acceptance. 7-Zip is optional because Windows tar.exe is supported.
+
+**Evidence:** contract/private-file/native lifecycle/package/Setup gates all PASS locally. Setup SHA-256 = `86162caa43a6ad265b677636072badaf49311b9abe476188d7943c76a592288f`.
+
+**Open gate:** exact-head hosted Windows + Linux CI, merge/release, and production upgrade/readback. Authenticode signing is MISSING/EXTERNAL because no valid Code Signing certificate is installed.
+
+**Exact next action:** commit/push rc.5 installer candidate, require exact-head CI PASS, then merge/tag/release and perform session-preserving live upgrade/readback.
