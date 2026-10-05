@@ -98,3 +98,14 @@ A post-load JavaScript/CSS injector:
 - observes dynamic DOM updates using a MutationObserver
 
 The selectors are deliberately limited; changes to ChatGPT's web DOM may require maintenance in future versions.
+
+
+## Rendering engine and automation-control boundary
+
+Remote Commander Browser uses one rendering engine: CEF/Chromium. It does not combine CEF with WebView2, Firefox or WebKit unless a concrete compatibility requirement is proven that CEF cannot satisfy.
+
+The authenticated production profile is a stateful trust boundary. Production launch uses the normal `chatgpt-cef-v2` profile root and must not enable a network remote-debugging port/pipe. QA and automation that need an isolated browser state use an explicit `--cgwa-profile-dir=<temporary-or-owned-path>`.
+
+For future instrumentation of the visible CEF instance, prefer CEF's in-process DevTools APIs (`CefBrowserHost::ExecuteDevToolsMethod` and `AddDevToolsMessageObserver`) instead of opening a remote-debugging endpoint. This keeps the control surface inside the host process and avoids exposing the authenticated profile over a debug socket.
+
+The frameless native header uses the full visible top bar as the draggable base region, then subtracts clickable header controls and occupied tab items. Unused tab-strip/header space therefore behaves like a normal browser title bar while buttons and tabs retain click semantics.
