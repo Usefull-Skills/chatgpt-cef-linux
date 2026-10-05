@@ -43,7 +43,8 @@ set(APP_SRCS
   src/commander_companion.h
 )
 if(WIN32)
-  list(APPEND APP_SRCS src/windows_private_file.cc src/windows_private_file.h)
+  enable_language(RC)
+  list(APPEND APP_SRCS src/windows_private_file.cc src/windows_private_file.h src/windows-app.rc)
 endif()
 
 if(WIN32)

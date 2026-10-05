@@ -695,13 +695,18 @@ NativeBinding ReadNativeBinding(const std::string& root) {
   NativeBinding out; out.error = error == "FILE_MISSING" ? "NATIVE_BINDING_MISSING" : error; return out;
 }
 std::string ProfileRoot() {
+  // Companion trust data is intentionally separate from the Chromium profile.
+  // CGWA_PROFILE_ROOT remains a compatibility fallback for isolated test profiles.
+  if (const char* root = std::getenv("CGWA_COMPANION_ROOT"); root && *root) return root;
   if (const char* root = std::getenv("CGWA_PROFILE_ROOT"); root && *root) return root;
 #if defined(_WIN32)
   const char* local = std::getenv("LOCALAPPDATA");
-  return local && *local ? std::string(local) + "\\chatgpt-cef-v2" : std::string();
+  return local && *local ? std::string(local) + "\\ChatGPTRemoteCommander\\browser-companion" : std::string();
 #else
+  if (const char* state = std::getenv("XDG_STATE_HOME"); state && *state)
+    return std::string(state) + "/chatgpt-remote-commander/browser-companion";
   const char* home = std::getenv("HOME");
-  return home && *home ? std::string(home) + "/.config/chatgpt-cef-v2" : std::string();
+  return home && *home ? std::string(home) + "/.local/state/chatgpt-remote-commander/browser-companion" : std::string();
 #endif
 }
 uint64_t NowEpochMs() {

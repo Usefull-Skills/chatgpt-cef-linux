@@ -428,7 +428,9 @@ void AppController::BackgroundSelfTestVerify() {
 
 void AppController::OnWindowBoundsChanged(const CefRect& new_bounds) {
   CEF_REQUIRE_UI_THREAD();
+  (void)new_bounds;
   LayoutTabOverlays();
+  UpdateDraggableRegions();
 }
 
 void AppController::OnWindowFullscreenTransition(bool is_completed) {
@@ -438,6 +440,7 @@ void AppController::OnWindowFullscreenTransition(bool is_completed) {
   if (header_) header_->SetVisible(!fullscreen_);
   window_->Layout();
   LayoutTabOverlays();
+  UpdateDraggableRegions();
 }
 
 void AppController::BuildWindowUI() {
@@ -480,9 +483,7 @@ void AppController::BuildWindowUI() {
   BuildHeaderControls();
   BuildCompanionPanel();
 
-  std::vector<CefDraggableRegion> regions;
-  regions.emplace_back(CefRect(0, 0, kBrandWidth, kHeaderHeight), true);
-  window_->SetDraggableRegions(regions);
+  UpdateDraggableRegions();
 
   // High-priority native accelerators work regardless of page focus.
   window_->SetAccelerator(kAccelNewTab, kVKeyT, false, true, false, true);
@@ -510,7 +511,9 @@ void AppController::BuildHeaderControls() {
   brand->SetFontList(kUIBoldFont);
   brand->SetEnabledTextColors(kText);
   brand->SetAccessibleName("Remote Commander Browser application");
+  header_buttons_.push_back(brand);
   header_->AddChildView(brand);
+
   header_->AddChildView(tab_strip_);
   header_layout_->SetFlexForView(tab_strip_, 1);
 
@@ -518,33 +521,92 @@ void AppController::BuildHeaderControls() {
   add->SetEnabledTextColors(kActiveText);
   add->SetTooltipText("New tab (Ctrl+T)");
   add->SetAccessibleName("New tab");
+  header_buttons_.push_back(add);
   header_->AddChildView(add);
 
   auto companion = make_button(kCompanionButton, "Commander", kButtonBg);
   companion->SetTooltipText("پنل مشاهده Commander (Ctrl+Shift+C)");
   companion->SetAccessibleName("Toggle read-only Commander companion");
+  header_buttons_.push_back(companion);
   header_->AddChildView(companion);
 
   auto full = make_button(kFullscreenButton, "⛶", kButtonBg);
   full->SetTooltipText("Fullscreen (F11)");
   full->SetAccessibleName("Toggle fullscreen");
+  header_buttons_.push_back(full);
   header_->AddChildView(full);
 
   auto max = make_button(kMaximizeButton, "▢", kButtonBg);
   max->SetTooltipText("Maximize / Restore");
   max->SetAccessibleName("Maximize or restore");
+  header_buttons_.push_back(max);
   header_->AddChildView(max);
 
   auto min = make_button(kMinimizeButton, "−", kButtonBg);
   min->SetTooltipText("Minimize");
   min->SetAccessibleName("Minimize");
+  header_buttons_.push_back(min);
   header_->AddChildView(min);
 
   auto close = make_button(kCloseWindowButton, "×", kDangerBg);
   close->SetEnabledTextColors(kMutedText);
   close->SetTooltipText("Close");
   close->SetAccessibleName("Close application");
+  header_buttons_.push_back(close);
   header_->AddChildView(close);
+}
+
+
+void AppController::UpdateDraggableRegions() {
+  CEF_REQUIRE_UI_THREAD();
+  if (!window_) return;
+  if (fullscreen_ || !header_ || !header_->IsVisible()) {
+    window_->SetDraggableRegions({});
+    return;
+  }
+
+  window_->Layout();
+  header_->Layout();
+  if (tab_strip_) tab_strip_->Layout();
+
+  const CefRect header_bounds = header_->GetBounds();
+  if (header_bounds.width <= 0 || header_bounds.height <= 0) {
+    window_->SetDraggableRegions({});
+    return;
+  }
+
+  std::vector<CefDraggableRegion> regions;
+  // Start with the full visible top bar. Subtract only actual clickable
+  // controls so unused header/tab-strip space behaves like a normal title bar.
+  regions.emplace_back(
+      CefRect(header_bounds.x, header_bounds.y,
+              header_bounds.width, header_bounds.height),
+      true);
+
+  auto subtract = [&](const CefRect& local, int parent_x, int parent_y) {
+    if (local.width <= 0 || local.height <= 0) return;
+    regions.emplace_back(
+        CefRect(parent_x + local.x, parent_y + local.y,
+                local.width, local.height),
+        false);
+  };
+
+  for (const auto& button : header_buttons_) {
+    if (button && button->IsVisible())
+      subtract(button->GetBounds(), header_bounds.x, header_bounds.y);
+  }
+
+  if (tab_strip_ && tab_strip_->IsVisible()) {
+    const CefRect strip = tab_strip_->GetBounds();
+    const int strip_x = header_bounds.x + strip.x;
+    const int strip_y = header_bounds.y + strip.y;
+    for (const auto& tab : tabs_) {
+      if (tab.ui_panel && tab.ui_panel->IsVisible())
+        subtract(tab.ui_panel->GetBounds(), strip_x, strip_y);
+    }
+  }
+
+  window_->SetDraggableRegions(regions);
 }
 
 void AppController::BuildCompanionPanel() {
@@ -825,13 +887,7 @@ void AppController::ToggleFullscreen() {
   window_->SetFullscreen(fullscreen_);
   window_->Layout();
   LayoutTabOverlays();
-  if (!fullscreen_) {
-    std::vector<CefDraggableRegion> regions;
-    regions.emplace_back(CefRect(0, 0, kBrandWidth, kHeaderHeight), true);
-    window_->SetDraggableRegions(regions);
-  } else {
-    window_->SetDraggableRegions({});
-  }
+  UpdateDraggableRegions();
 }
 
 void AppController::ToggleMaximize() {
@@ -1019,7 +1075,10 @@ void AppController::RebuildTabStrip() {
     tab_strip_->AddChildView(item);
   }
   tab_strip_->Layout();
-  if (header_) header_->Layout();
+  if (header_) {
+    header_->Layout();
+    UpdateDraggableRegions();
+  }
 }
 
 void AppController::UpdateTabButton(Tab& tab) {
