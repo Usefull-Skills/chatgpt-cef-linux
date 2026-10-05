@@ -21,3 +21,10 @@
 - Regression: second build identified MSVC 19.51.36260.0 and completed 224/224; windows-private-file-test safe path PASS and broad ACL reject PASS; native lifecycle PASS; package PASS.
 - Artifact SHA-256: 81b2e5e1683197bebdc51c56cf1e6efbf74f070d9ce1248f24666f405da27ec1.
 - Confidence/Status: Confirmed / Candidate-qualified on local Windows host. Hosted and Linux gates still required.
+
+## 2026-10-05 — Immutable tag collision prevention
+
+- Evidence: refs/tags/v0.8.0-rc.3 peels to 6064c0693f917ad40211715cd4500249053a48fd, while reconciled main is 1afeff5276927ba4eeae0e003b8fffa852affef2.
+- Decision: preserve the historical tag and advance the release line to v0.8.0-rc.4.
+- Prevention: release automation must verify remote tag absence/peel before tag creation and must never force-update published tags.
+- Status: Confirmed.

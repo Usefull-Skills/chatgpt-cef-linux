@@ -18,3 +18,9 @@ System.Object[]
 - Windows local gates on rc.3 candidate: native build PASS; private-file safe-read PASS; broad Everyone-read ACL rejection PASS; native lifecycle/self-test PASS; package PASS.
 - Windows package: remote-commander-browser-v0.8.0-rc.3-windows-x86_64.zip; SHA-256 81b2e5e1683197bebdc51c56cf1e6efbf74f070d9ce1248f24666f405da27ec1.
 - Remaining promotion gates: exact-head hosted Windows/Linux CI, Linux native lifecycle/package, real UI observation/input smoke, Commander integration/recovery/rollback acceptance.
+
+## 2026-10-05 — Release-line correction to rc.4
+
+- Confirmed remote tag v0.8.0-rc.3 already existed on historical commit 6064c0693f917ad40211715cd4500249053a48fd.
+- Decision: never force or rewrite the existing tag. The reconciled Remote Commander Browser candidate advances to v0.8.0-rc.4.
+- Prior rc.3 qualification evidence remains historical evidence for the same product tree lineage; rc.4 must receive fresh exact-head hosted CI before tagging/publishing.
