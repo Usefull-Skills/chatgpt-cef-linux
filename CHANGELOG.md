@@ -1,3 +1,10 @@
+## 0.8.0 - 2026-10-06
+
+- Promote the rc.9-qualified runtime and release-integrity hardening to stable.
+- Keep CEF runtime/source behavior unchanged from rc.9.
+- Publish stable releases as latest while retaining explicit prerelease/latest=false semantics for future release candidates.
+- Preserve all prior preview tags/assets without rewrite.
+
 # CEF 0.8.0-rc.1 preview — 2026-10-02
 
 Version the Saeid native companion and V03 source snapshots with explicit incomplete integration/platform gates. Stable automatic update is not enabled.

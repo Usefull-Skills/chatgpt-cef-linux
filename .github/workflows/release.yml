@@ -170,10 +170,10 @@ jobs:
             exit 1
           fi
           mapfile -t assets < <(find dist/release -maxdepth 1 -type f -printf '%p\n' | LC_ALL=C sort)
-          release_flags=(--latest=false)
+          release_flags=(--latest)
           expected_prerelease=false
           if [[ "$version" == *-* ]]; then
-            release_flags+=(--prerelease)
+            release_flags=(--prerelease --latest=false)
             expected_prerelease=true
           fi
           gh release create "$tag" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Remote Commander Browser $tag" --notes-file "$notes" "${release_flags[@]}"

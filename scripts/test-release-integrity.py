@@ -17,7 +17,7 @@ SPEC = importlib.util.spec_from_file_location(
 assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
-VERSION = "0.8.0-rc.9"
+VERSION = "0.8.0"
 
 class ReleaseIntegrityTests(unittest.TestCase):
     def setUp(self):
@@ -119,8 +119,8 @@ class ReleaseIntegrityTests(unittest.TestCase):
             workflow.index("python3 scripts/verify-release-assets.py"),
             workflow.index(" > SHA256SUMS.txt"),
         )
-        self.assertIn("release_flags=(--latest=false)", workflow)
-        self.assertIn("release_flags+=(--prerelease)", workflow)
+        self.assertIn("release_flags=(--latest)", workflow)
+        self.assertIn("release_flags=(--prerelease --latest=false)", workflow)
         self.assertIn('RELEASE_ALREADY_EXISTS_RECONCILE', workflow)
         self.assertIn('test "$immutable" = true', workflow)
         self.assertIn('needs: [windows, linux, release-contract]', workflow)

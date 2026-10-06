@@ -195,3 +195,10 @@ The suite now has15 distinct cases: Windows can execute12 with3 POSIX skips. Nat
 Linux before/after proof and hosted exact-head checks must be separately recorded.
 This fixes the generated shell contract; real CEF UI, SUID/privilege behavior and
 full installer rollback remain separate acceptance gates. No tag or live rollout.
+
+
+### 2026-10-06 — v0.8.0 stable promotion candidate
+
+Previous accepted candidate: rc.9 exact head 95b8c01b5169201e7a2d1955ab72530e9fe73827 with hosted Release, Build/Linux-native, and Windows-native gates PASS. Stable mutation is identity/publication-policy only; CEF runtime/source behavior is unchanged.
+
+Current gate: local stable release-integrity tests then hosted exact-head Release/Build/Windows-native on the stable identity. No tag/release before all hosted gates PASS.
