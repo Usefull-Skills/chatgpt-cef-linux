@@ -31,7 +31,7 @@ Source: "..\scripts\install-windows.ps1"; DestDir: "{tmp}"; Flags: ignoreversion
 Source: "..\assets\remote-commander-browser-logo.png"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 
 [Run]
-Filename: "{code:GetPwshPath}"; Parameters: "{code:GetInstallArguments}"; StatusMsg: "Installing Remote Commander Browser..."; Flags: waituntilterminated
+Filename: "{code:GetPwshPath}"; Parameters: "{code:GetInstallArguments}"; StatusMsg: "Installing Remote Commander Browser..."; Flags: waituntilterminated logoutput
 Filename: "{localappdata}\Programs\Remote Commander Browser\current\chatgpt-cef-v2.exe"; Description: "Open Remote Commander Browser"; Flags: nowait postinstall skipifsilent
 
 [Code]

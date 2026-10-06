@@ -69,3 +69,9 @@ System.Object[]
 **Open gate:** exact-head hosted Windows + Linux CI, merge/release, and production upgrade/readback. Authenticode signing is MISSING/EXTERNAL because no valid Code Signing certificate is installed.
 
 **Exact next action:** commit/push rc.5 installer candidate, require exact-head CI PASS, then merge/tag/release and perform session-preserving live upgrade/readback.
+
+### 2026-10-06 — Browser rc.5 hosted Setup blocker narrowed
+
+**Current result:** PR #65 head `a324b8c`: Linux regression/build + companion contract PASS; Windows native fails only after Setup launches the embedded PowerShell installer. Custom QA paths are propagated correctly, but the child exits 1 and no install root is created. Setup currently masks that child failure with exit 0.
+
+**← CURRENT:** enable official Inno child-output logging only, rerun exact hosted Windows gate, then fix the evidenced child error and make Setup fail closed on nonzero child exit. No merge/release until that sequence passes.

@@ -62,3 +62,11 @@
 - **CI prevention:** Windows workflow now builds the Setup and performs a silent isolated install with manifest and ACL readback. Windows and Linux native gates remain required on exact head before promotion.
 - **Signing status:** no valid local Code Signing certificate with private key is installed. The Setup is therefore `NotSigned`; self-signing is not treated as a substitute for public publisher trust. This is an **EXTERNAL/MISSING signing authority**, not a hidden PASS.
 - **Status:** local implementation = CONFIRMED PASS; hosted exact-head CI/release = OPEN.
+
+### 2026-10-06 — Hosted Windows Setup blocker narrowed to child installer exit
+
+- **Context:** PR #65 exact head `a324b8c` reran Windows/Linux hosted gates after adding Setup diagnostics. Linux regression, Linux release build, and companion contract passed; Windows native failed only in the silent isolated Setup acceptance stage.
+- **Confirmed evidence:** Inno Setup compiled the rc.5 installer successfully. The Setup log shows all custom parameters (`-InstallRoot`, `-CompanionRoot`, `-NoPublicIntegration`) were passed exactly to `install-windows.ps1`. The PowerShell child exited with code **1**; both QA and default install roots remained absent. Inno itself returned success despite the child failure, so Setup fail-closed semantics are also an open defect.
+- **Method evidence:** current Inno Setup documentation/revision history explicitly provides the `logoutput` flag and `ExecAndLogOutput` for capturing child process output in Setup logs. The minimum next control is therefore to enable `logoutput` on the existing [Run] entry and rerun the same hosted gate before changing ACL/install logic.
+- **Status:** root cause of the child exit remains **UNVERIFIED**; parameter propagation is **CONFIRMED GOOD**. Browser rc.5 remains blocked from merge/release.
+- **Reuse targets:** Windows installer runbook, CI failure-prevention, release checklist.
