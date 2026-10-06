@@ -151,3 +151,9 @@ Local isolated Setup now passes both positive and negative paths on Windows. Goo
 **Current delta:** explicit four-file Windows staging + exact filename/count guard + single staging upload; the same Release build path now runs on release-related PRs, with publish tag-only. Runtime semantics unchanged.
 
 **← CURRENT:** validate YAML/diff locally, push rc.8 PR, require Release PR build + existing Windows/Linux gates; only then merge/tag and verify published Setup + checksums.
+
+### 2026-10-06 — rc.8 staging PASS; upload selector narrowed
+
+**Result:** hosted rc.8 stage produced exactly four required Windows files; Linux Release job PASS. Only upload selector failed on the Windows wildcard. Changed to official whole-directory upload while retaining exact pre-upload guard.
+
+**← CURRENT:** push new exact head and require fresh Release PR PASS.

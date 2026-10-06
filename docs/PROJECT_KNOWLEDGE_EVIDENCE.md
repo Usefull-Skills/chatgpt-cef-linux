@@ -162,3 +162,11 @@
 - **rc.8 design:** stage exactly four Windows release files in one dedicated directory, assert exact filename set/count, upload one staging pattern, and run the same Release Windows/Linux build jobs on release-related PRs while keeping publish tag-only.
 - **Why this is minimum sufficient:** it removes implicit layout inference and moves the actual release implementation before promotion; no duplicate release workflow, recursive flattening, or extra runtime feature gate is introduced.
 - **Status:** rc.8 implementation pending YAML/static validation and hosted exact-head PR release-build PASS.
+
+### 2026-10-06 — rc.8 PR release gate first attempt: Windows directory wildcard rejected
+
+- **Exact-head PR run:** Release run `37450317568` on `17a5dac` reached `WINDOWS_RELEASE_STAGE_PASS count=4`; Linux release job PASS. Windows failed only at `actions/upload-artifact` because `path: dist/release-windows/*` returned “No files were found”.
+- **Interpretation:** file production/staging is proven; this is action path-selection behavior, not Browser build or Setup regression.
+- **External evidence:** official upload-artifact usage explicitly supports uploading an entire directory by passing the directory path directly. The simpler contract avoids Windows wildcard matching entirely.
+- **Fix:** use `path: dist/release-windows/` while retaining the preceding exact four-file filename/count guard. No runtime or artifact-content changes.
+- **Status:** fresh exact-head Release PR run required; failed head is not rerun blindly.
