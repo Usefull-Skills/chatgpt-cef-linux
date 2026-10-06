@@ -121,3 +121,11 @@ Local isolated Setup now passes both positive and negative paths on Windows. Goo
 **Prevention:** the same pinned compiler bootstrap is now exercised in PR Windows qualification and reused by tag Release, so mutable Chocolatey-feed drift cannot first appear only after tagging.
 
 **← CURRENT:** commit/push rc.6 branch; require all hosted exact-head gates. No tag until merge-tree equality is verified.
+
+### 2026-10-06 — Browser rc.6 Inno space-path fix
+
+**Root cause:** shared bootstrap did not quote the portable installer `/DIR` path; hosted default contains spaces. Both independent hosted Windows runs failed at the same point.
+
+**Fix + local proof:** quote `/DIR`; real default path with spaces now returns `INNO_SETUP_PIN_PASS` with exact hash/signer and compiler readback.
+
+**← CURRENT:** push new exact head and require fresh Windows PR gate. Linux/companion on the prior runtime-equivalent head were already PASS.

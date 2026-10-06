@@ -127,3 +127,11 @@
 - **Actual Setup acceptance:** silent isolated install returned 0; product record version `0.8.0-rc.6`, `publicIntegration=false`; companion ACL protected with exactly three expected explicit rules; no authenticated production browser profile was used or changed.
 - **Static QA:** PASS after rc.6 metadata/workflow update.
 - **Promotion gate:** exact-head hosted Windows must independently exercise the pinned compiler script + native build + Setup build + silent isolated Setup; Linux regression/release-build must also PASS.
+
+### 2026-10-06 — rc.6 hosted Windows compiler bootstrap failure: path quoting
+
+- **Occurrence:** both push and PR Windows jobs on exact head `e580f99` failed at the new shared compiler bootstrap; native build, ACL guard, lifecycle and Windows ZIP packaging had already passed. Linux regression/release-build and companion contract passed.
+- **Root cause — CONFIRMED:** official Inno installer download/hash/Authenticode checks succeeded and installer returned success, but `ISCC.exe` was absent from the intended default directory. The default target `%LOCALAPPDATA%\Programs\Inno Setup 6` contains spaces, while `Start-Process -ArgumentList` was given an unquoted `/DIR=<path>`. Earlier local isolated acceptance used a no-space temp path and therefore did not expose this.
+- **Fix/prevention:** pass the Inno `/DIR` value with embedded quotes. Keep the hosted PR gate using the real default path so this exact quoting contract is permanently exercised before tagging.
+- **Post-fix local acceptance:** running `scripts/install-inno-setup.ps1` with its real default space-containing path returned `INNO_SETUP_PIN_PASS`, exact SHA-256 `9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732`, valid Pyrsys B.V. signer, and existing `ISCC.exe` at the expected path.
+- **Status:** local PASS; fresh hosted exact-head Windows required, no blind rerun of the failed head.

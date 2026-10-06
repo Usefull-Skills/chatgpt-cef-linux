@@ -17,7 +17,7 @@ try{
   $subject=[string]$sig.SignerCertificate.Subject
   if($subject-notlike'*Pyrsys B.V.*'){throw "INNO_SETUP_SIGNER_UNEXPECTED subject=$subject"}
   New-Item -ItemType Directory -Force -Path $InstallDir|Out-Null
-  $p=Start-Process -FilePath $download -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/PORTABLE=1',('/DIR='+$InstallDir)) -Wait -PassThru
+  $p=Start-Process -FilePath $download -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/PORTABLE=1',('/DIR="'+$InstallDir+'"')) -Wait -PassThru
   if($p.ExitCode-ne0){throw "INNO_SETUP_INSTALL_FAILED exit=$($p.ExitCode)"}
   $iscc=Join-Path $InstallDir 'ISCC.exe'
   if(-not(Test-Path -LiteralPath $iscc -PathType Leaf)){throw 'INNO_SETUP_ISCC_MISSING'}
