@@ -135,3 +135,20 @@
 - **Fix/prevention:** pass the Inno `/DIR` value with embedded quotes. Keep the hosted PR gate using the real default path so this exact quoting contract is permanently exercised before tagging.
 - **Post-fix local acceptance:** running `scripts/install-inno-setup.ps1` with its real default space-containing path returned `INNO_SETUP_PIN_PASS`, exact SHA-256 `9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732`, valid Pyrsys B.V. signer, and existing `ISCC.exe` at the expected path.
 - **Status:** local PASS; fresh hosted exact-head Windows required, no blind rerun of the failed head.
+
+### 2026-10-06 — rc.6 Release succeeded but omitted standalone Setup; rc.7 layout correction
+
+- **Observed release:** `v0.8.0-rc.6` Release workflow run `37441230302` completed SUCCESS and published release id `404522059`. Published assets were Linux tar + checksum, Windows ZIP + checksum, and aggregate `SHA256SUMS.txt`; the standalone Windows Setup EXE was **missing**.
+- **Root cause — CONFIRMED by workflow + release asset list:** Windows artifact upload included `dist/installer/Remote-Commander-Browser-Setup-v*.exe`, preserving the `installer/` subdirectory. Publish enumerated only `dist/release` files at `maxdepth=1`, so the nested Setup was excluded without failing. The release itself was therefore incomplete for Commander embedding even though product build gates passed.
+- **Provenance decision:** do not move rc.6 tag and do not retrofit it as the authoritative Commander dependency. Advance to rc.7 with unchanged Browser runtime and a release-layout-only fix.
+- **Repair:** copy the already-built Setup to `dist/Remote-Commander-Browser-Setup-v<version>.exe` before artifact upload; upload that top-level file; and add a publish-time assertion requiring the Setup at top level before checksums/release creation.
+- **Prevention:** future tag releases fail before publication if the standalone Setup is absent. This is the minimum sufficient control; no recursive-release flattening or broader artifact restructuring is added.
+- **Status:** local workflow/source delta pending exact-head hosted Windows/Linux gates and rc.7 tag Release verification.
+
+### 2026-10-06 — Browser rc.7 local release-layout qualification PASS
+
+- **Workflow syntax:** `.github/workflows/release.yml` and `windows-native.yml` parsed successfully as YAML; `git diff --check` PASS.
+- **Actual Windows Setup build:** Inno Setup 6.7.3 compiled `Remote-Commander-Browser-Setup-v0.8.0-rc.7.exe` successfully from the already-qualified native payload. Local SHA-256: `4f21ca40b595637083342765de070e7e524ee5ecd80da9e097bf8048359fb181`; size `136261367` bytes; Authenticode status remains `NotSigned` (external signing gate unchanged).
+- **Release-layout acceptance:** copied the built Setup from `dist/installer/` to the exact top-level release path `dist/Remote-Commander-Browser-Setup-v0.8.0-rc.7.exe`; source and release copy SHA-256 values matched exactly. This validates the narrow rc.7 mutation locally.
+- **Proportional rigor:** no redundant local silent-install rerun was added because Browser runtime/installer semantics are unchanged from rc.6 and exact-head hosted Windows permanently performs the real standalone Setup build + isolated silent-install acceptance. The new release-layout contract is independently guarded by the top-level publish assertion.
+- **Status:** local rc.7 release-layout PASS; hosted exact-head Windows + Linux/Build remain the promotion gate.
