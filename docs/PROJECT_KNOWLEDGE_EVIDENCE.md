@@ -70,3 +70,19 @@
 - **Method evidence:** current Inno Setup documentation/revision history explicitly provides the `logoutput` flag and `ExecAndLogOutput` for capturing child process output in Setup logs. The minimum next control is therefore to enable `logoutput` on the existing [Run] entry and rerun the same hosted gate before changing ACL/install logic.
 - **Status:** root cause of the child exit remains **UNVERIFIED**; parameter propagation is **CONFIRMED GOOD**. Browser rc.5 remains blocked from merge/release.
 - **Reuse targets:** Windows installer runbook, CI failure-prevention, release checklist.
+
+### 2026-10-06 — Hosted Windows Browser Setup root cause confirmed and fail-closed repair
+
+- **Confirmed root cause:** exact-head hosted log with child-output capture shows `install-windows.ps1` exits 1 at `BROWSER_COMPANION_ACL_OWNER_MISMATCH`. Custom Inno parameters are correct; the failure occurs because the hosted QA directory inherits an owner different from the current runner identity, while the native Windows private-file guard intentionally requires owner == current user.
+- **Repair:** preserve the strict native owner invariant. When the installer detects an owner mismatch, it uses Windows `icacls /setowner` with the current identity, verifies the resulting owner SID, then applies the existing inheritance-removal/current-user+SYSTEM+Administrators full-control DACL and performs the existing private-ACL readback. No broad principal is added.
+- **Fail-closed Setup:** the embedded PowerShell installer is no longer a [Run] entry whose nonzero result can be masked. Inno Pascal `ExecAndLogOutput` now runs it during `ssPostInstall`, logs child output, and raises a fatal Setup exception when the child exit code is nonzero.
+- **Evidence hierarchy:** Microsoft documents `icacls /setowner`; current Inno Setup documents `logoutput`/`ExecAndLogOutput`. Hosted rerun on the repaired exact head remains required before promotion.
+- **Status:** local code repair = PROPOSAL pending parser/build/isolated-install regression and hosted Windows PASS. Browser rc.5 remains UNPROVEN for release.
+
+### 2026-10-06 — Local Browser Setup owner-repair + fail-closed regression PASS
+
+- **Exact artifact:** `Remote-Commander-Browser-Setup-v0.8.0-rc.5.exe`, SHA-256 `96793f036d62fe3ccad5dec2065e02c1dd97ecb6996d6e737fce01234ddcf396`.
+- **Success-path evidence:** isolated silent Setup returned 0; installed `0.8.0-rc.5`; `publicIntegration=false`; companion root ACL inheritance is protected.
+- **Failure-path evidence:** a deterministic invalid InstallRoot (regular file instead of directory) forced the embedded helper to fail. Setup returned custom exit code **200** via `GetCustomSetupExitCode`; no `product-install.json` was promoted under the bad root. This proves child failure is no longer masked as Setup success.
+- **Status:** local Windows regression PASS. Hosted Windows exact-head PASS remains required before merge/release. Login/profile state was not touched by these isolated QA roots.
+- **Reuse targets:** Browser release evidence, Commander bundled-browser contract, Windows installer regression suite.

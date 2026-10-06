@@ -31,12 +31,12 @@ Source: "..\scripts\install-windows.ps1"; DestDir: "{tmp}"; Flags: ignoreversion
 Source: "..\assets\remote-commander-browser-logo.png"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 
 [Run]
-Filename: "{code:GetPwshPath}"; Parameters: "{code:GetInstallArguments}"; StatusMsg: "Installing Remote Commander Browser..."; Flags: waituntilterminated logoutput
 Filename: "{localappdata}\Programs\Remote Commander Browser\current\chatgpt-cef-v2.exe"; Description: "Open Remote Commander Browser"; Flags: nowait postinstall skipifsilent
 
 [Code]
 var
   PwshPath: String;
+  BrowserInstallExitCode: Integer;
 
 function FindPwsh: String;
 begin
@@ -99,4 +99,42 @@ begin
   except
     Result := GetExceptionMessage;
   end;
+end;
+
+procedure BrowserInstallLog(const S: String; const Error, FirstLine: Boolean);
+begin
+  Log('Browser installer: ' + S);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+  Started: Boolean;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    ResultCode := 0;
+    try
+      Started := ExecAndLogOutput(PwshPath, GetInstallArguments(''), '', SW_SHOWNORMAL,
+        ewWaitUntilTerminated, ResultCode, @BrowserInstallLog);
+      if not Started then
+      begin
+        Log('Browser installer helper could not be started. ResultCode=' + IntToStr(ResultCode));
+        BrowserInstallExitCode := 201;
+      end
+      else if ResultCode <> 0 then
+      begin
+        Log('Browser installer helper failed with exit code ' + IntToStr(ResultCode) + '.');
+        BrowserInstallExitCode := 200;
+      end;
+    except
+      Log('Browser installer helper execution exception: ' + GetExceptionMessage);
+      BrowserInstallExitCode := 202;
+    end;
+  end;
+end;
+
+function GetCustomSetupExitCode: Integer;
+begin
+  Result := BrowserInstallExitCode;
 end;

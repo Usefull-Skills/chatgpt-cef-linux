@@ -75,3 +75,17 @@ System.Object[]
 **Current result:** PR #65 head `a324b8c`: Linux regression/build + companion contract PASS; Windows native fails only after Setup launches the embedded PowerShell installer. Custom QA paths are propagated correctly, but the child exits 1 and no install root is created. Setup currently masks that child failure with exit 0.
 
 **← CURRENT:** enable official Inno child-output logging only, rerun exact hosted Windows gate, then fix the evidenced child error and make Setup fail closed on nonzero child exit. No merge/release until that sequence passes.
+
+### 2026-10-06 — Browser rc.5 owner-repair / fail-closed Setup change
+
+**Root cause:** hosted Windows proved `BROWSER_COMPANION_ACL_OWNER_MISMATCH`; parameter propagation and Browser build were good. The strict owner invariant remains authoritative.
+
+**Current delta:** installer now repairs owner to the current identity with official Windows ACL tooling, verifies owner SID, then applies/verifies the private DACL. Setup now executes the child via Inno `ExecAndLogOutput` and treats child exit != 0 as fatal instead of returning success.
+
+**← CURRENT:** local compile + isolated Setup regression, then exact-head hosted Windows/Linux gates. Merge/release remains blocked until hosted Windows PASS.
+
+### 2026-10-06 — Browser local release gate PASS after owner/fail-closed repair
+
+Local isolated Setup now passes both positive and negative paths on Windows. Good path installs rc.5 with private companion ACL; deterministic child failure returns Setup exit 200 and promotes nothing. Artifact SHA-256: `96793f036d62fe3ccad5dec2065e02c1dd97ecb6996d6e737fce01234ddcf396`.
+
+**← CURRENT:** commit/push this exact change set and require hosted Windows native + Linux regression/build + companion contract PASS on the pushed SHA before merge/release.

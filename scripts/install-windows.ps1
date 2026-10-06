@@ -74,14 +74,23 @@ function Ensure-PrivateDirectory([string]$Path) {
   New-Item -ItemType Directory -Force -Path $Path | Out-Null
   if(Test-PrivateDirectoryAcl $Path){return}
 
-  $user=[Security.Principal.WindowsIdentity]::GetCurrent().User
+  $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
+  $user=$identity.User
   $acl=Get-Acl -LiteralPath $Path
   try{$owner=(New-Object Security.Principal.NTAccount($acl.Owner)).Translate([Security.Principal.SecurityIdentifier])}
   catch{throw 'BROWSER_COMPANION_ACL_OWNER_UNRESOLVED'}
-  if($owner.Value-ne$user.Value){throw 'BROWSER_COMPANION_ACL_OWNER_MISMATCH'}
 
   $icacls=Join-Path $env:SystemRoot 'System32\icacls.exe'
   if(-not(Test-Path -LiteralPath $icacls -PathType Leaf)){throw 'BROWSER_COMPANION_ICACLS_MISSING'}
+  if($owner.Value-ne$user.Value){
+    & $icacls $Path '/setowner' $identity.Name '/Q' | Out-Null
+    if($LASTEXITCODE-ne0){throw "BROWSER_COMPANION_OWNER_REPAIR_FAILED exit=$LASTEXITCODE"}
+    $acl=Get-Acl -LiteralPath $Path
+    try{$owner=(New-Object Security.Principal.NTAccount($acl.Owner)).Translate([Security.Principal.SecurityIdentifier])}
+    catch{throw 'BROWSER_COMPANION_ACL_OWNER_UNRESOLVED_AFTER_REPAIR'}
+    if($owner.Value-ne$user.Value){throw 'BROWSER_COMPANION_ACL_OWNER_MISMATCH_AFTER_REPAIR'}
+  }
+
   $args=@(
     $Path,
     '/inheritance:r',
