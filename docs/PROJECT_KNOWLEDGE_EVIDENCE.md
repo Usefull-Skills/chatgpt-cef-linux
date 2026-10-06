@@ -108,3 +108,22 @@
 - **Decision:** remove hard-coded local artifact hashes from release notes. The immutable tag release workflow rebuilds artifacts, creates and verifies `SHA256SUMS.txt`, and that published checksum file is the only release artifact identity. Local hashes remain qualification evidence only.
 - **Reason:** prevents stale provenance from being published while preserving reproducible tag→workflow→checksum authority.
 - **Status:** documentation-only delta; exact-head CI remains required because release metadata is part of the product release contract.
+
+### 2026-10-06 — rc.5 release attempt failed at mutable compiler feed; rc.6 provenance decision
+
+- **rc.5 product qualification:** exact PR head `6ecba4a0079cecabc564f1526a2b8b0981ea077e` passed companion contract, hosted Windows native lifecycle/private ACL/standalone Setup/silent isolated Setup acceptance, Linux regression, and Linux release build. Merge commit `f34f01299b3ba2308c097ec7e93fd6bbdb95202f` has the same tree.
+- **Release failure — CONFIRMED infrastructure only:** tag `v0.8.0-rc.5` triggered Release run `37433257939`. Linux release job passed; Windows stopped before product build because Chocolatey no longer served `innosetup 6.7.3`. Publish was skipped, so no rc.5 GitHub Release was created.
+- **Provenance decision:** never move or overwrite the rc.5 tag. rc.5 remains an immutable failed release attempt. Advance to rc.6 with the same qualified Browser runtime plus a release-infrastructure correction.
+- **Official compiler evidence:** `jrsoftware/issrc` release `is-6_7_3` exposes `innosetup-6.7.3.exe` with release-asset SHA-256 `9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732`.
+- **Independent Windows audit:** downloaded that exact asset, SHA matched, Authenticode was `Valid`, signer was `Pyrsys B.V.`, silent portable install succeeded, and resulting `ISCC.exe` executed as Inno Setup 6 compiler.
+- **Prevention:** release workflow now uses that immutable official asset, checks exact SHA-256, valid Authenticode and expected signer before installing it. Chocolatey is removed from Browser release compiler provisioning.
+- **Open gate:** rc.6 exact-head hosted Windows/Linux qualification, merge-tree equivalence, immutable tag, Release workflow PASS, and published release checksum verification.
+
+### 2026-10-06 — Browser rc.6 local qualification after compiler-bootstrap repair
+
+- **Pinned compiler script:** `scripts/install-inno-setup.ps1` is the single provisioning path used by both hosted PR Windows qualification and tag Release Windows build. It downloads only the official `jrsoftware/issrc is-6_7_3` installer, enforces SHA-256 `9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732`, requires valid Authenticode and expected signer `Pyrsys B.V.`, then performs a no-restart portable install.
+- **Script-level acceptance:** isolated `install-inno-setup.ps1 -InstallDir <temp>` returned `INNO_SETUP_PIN_PASS`; compiler existed and was removed with the test root.
+- **rc.6 Setup build:** `Remote-Commander-Browser-Setup-v0.8.0-rc.6.exe` built successfully from the already-qualified Windows native payload; local qualification SHA-256 `73af9d4ccc87fca422a26aa1e3830a836b908b209d6cdb633a393d68c958e70c`; product Setup signing remains `NotSigned`.
+- **Actual Setup acceptance:** silent isolated install returned 0; product record version `0.8.0-rc.6`, `publicIntegration=false`; companion ACL protected with exactly three expected explicit rules; no authenticated production browser profile was used or changed.
+- **Static QA:** PASS after rc.6 metadata/workflow update.
+- **Promotion gate:** exact-head hosted Windows must independently exercise the pinned compiler script + native build + Setup build + silent isolated Setup; Linux regression/release-build must also PASS.
