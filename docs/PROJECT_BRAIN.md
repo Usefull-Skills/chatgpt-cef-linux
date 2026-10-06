@@ -143,3 +143,11 @@ Local isolated Setup now passes both positive and negative paths on Windows. Goo
 **Result:** YAML parse/diff checks PASS; actual rc.7 Setup compiled with Inno 6.7.3; top-level release copy is byte-identical to built Setup (local SHA `4f21ca40...9fb181`). Runtime semantics remain inherited from qualified rc.6.
 
 **← CURRENT:** commit/push rc.7 and require hosted Windows native Setup acceptance + Build/Linux PASS. Only then merge/tag and verify the published GitHub Release contains the top-level Setup asset and aggregate checksum.
+
+### 2026-10-06 — Browser rc.8 release-path redesign
+
+**Previous state:** rc.7 runtime and tag Windows/Linux builds PASS, but publish guard caught incomplete downloaded release layout. This was the third release-infrastructure failure family occurrence.
+
+**Current delta:** explicit four-file Windows staging + exact filename/count guard + single staging upload; the same Release build path now runs on release-related PRs, with publish tag-only. Runtime semantics unchanged.
+
+**← CURRENT:** validate YAML/diff locally, push rc.8 PR, require Release PR build + existing Windows/Linux gates; only then merge/tag and verify published Setup + checksums.

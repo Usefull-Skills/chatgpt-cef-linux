@@ -3,6 +3,20 @@ name: Release
 on:
   push:
     tags: ['v*']
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - 'VERSION'
+      - 'installer/**'
+      - 'scripts/install-inno-setup.ps1'
+      - 'scripts/build-windows.ps1'
+      - 'scripts/package-windows.ps1'
+      - 'scripts/build-windows-installer.ps1'
+      - 'scripts/static-qa.sh'
+      - 'scripts/fetch-cef.sh'
+      - 'scripts/build-release.sh'
+      - 'scripts/package-release.sh'
+      - 'docs/RELEASE_*.md'
 
 permissions:
   contents: write
@@ -14,12 +28,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - name: Verify tag and version
+      - name: Verify release version
         shell: pwsh
         run: |
           $version=(Get-Content VERSION -Raw).Trim()
-          if('${{ github.ref_name }}' -ne "v$version"){ throw "Tag/version mismatch" }
+          if(-not $version){ throw 'VERSION missing' }
+          if('${{ github.event_name }}' -ne 'pull_request' -and '${{ github.ref_name }}' -ne "v$version"){ throw "Tag/version mismatch" }
       - name: Install verified pinned Inno Setup
         shell: pwsh
         run: |
@@ -30,7 +46,7 @@ jobs:
         run: |
           ./scripts/build-windows.ps1
           if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
-      - name: Package Windows ZIP and Setup
+      - name: Package and stage exact Windows release assets
         shell: pwsh
         run: |
           ./scripts/package-windows.ps1
@@ -39,32 +55,49 @@ jobs:
           if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
           $version=(Get-Content VERSION -Raw).Trim()
           $setup="dist/installer/Remote-Commander-Browser-Setup-v$version.exe"
-          if(-not(Test-Path $setup)){ throw 'Setup missing' }
-          $releaseSetup="dist/Remote-Commander-Browser-Setup-v$version.exe"
-          Copy-Item -LiteralPath $setup -Destination $releaseSetup
-          (Get-FileHash $releaseSetup -Algorithm SHA256).Hash.ToLowerInvariant() + "  " + [IO.Path]::GetFileName($releaseSetup) |
-            Set-Content "dist/SHA256SUMS-setup-v$version.txt" -Encoding ascii
+          if(-not(Test-Path -LiteralPath $setup -PathType Leaf)){ throw 'Setup missing' }
+          $setupName="Remote-Commander-Browser-Setup-v$version.exe"
+          $setupSumName="SHA256SUMS-setup-v$version.txt"
+          $zipName="remote-commander-browser-v$version-windows-x86_64.zip"
+          $zipSumName="SHA256SUMS-windows-v$version.txt"
+          $setupHash=(Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$setupHash  $setupName" | Set-Content "dist/$setupSumName" -Encoding ascii
+          $stage='dist/release-windows'
+          Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          foreach($name in @($zipName,$zipSumName,$setupSumName)){
+            $src=Join-Path 'dist' $name
+            if(-not(Test-Path -LiteralPath $src -PathType Leaf)){ throw "Release asset missing: $name" }
+            Copy-Item -LiteralPath $src -Destination (Join-Path $stage $name)
+          }
+          Copy-Item -LiteralPath $setup -Destination (Join-Path $stage $setupName)
+          $expected=@($setupName,$setupSumName,$zipName,$zipSumName)|Sort-Object
+          $actual=@(Get-ChildItem -LiteralPath $stage -File|ForEach-Object Name|Sort-Object)
+          if($actual.Count-ne4 -or (Compare-Object $expected $actual)){ throw "WINDOWS_RELEASE_STAGE_INVALID actual=$($actual -join ',')" }
+          Write-Output "WINDOWS_RELEASE_STAGE_PASS count=4 setupSha256=$setupHash"
       - uses: actions/upload-artifact@v4
         with:
           name: browser-release-windows
-          path: |
-            dist/remote-commander-browser-v*-windows-x86_64.zip
-            dist/SHA256SUMS-windows-v*.txt
-            dist/Remote-Commander-Browser-Setup-v*.exe
-            dist/SHA256SUMS-setup-v*.txt
+          path: dist/release-windows/*
           if-no-files-found: error
+          compression-level: 0
 
   linux:
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
-      - name: Verify tag and version
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify release version
         shell: bash
         run: |
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
-          test "$GITHUB_REF_NAME" = "v$version"
+          test -n "$version"
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            test "$GITHUB_REF_NAME" = "v$version"
+          fi
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -89,6 +122,7 @@ jobs:
           if-no-files-found: error
 
   publish:
+    if: github.event_name != 'pull_request'
     needs: [windows, linux]
     runs-on: ubuntu-24.04
     steps:
