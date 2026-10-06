@@ -103,3 +103,29 @@ Local isolated Setup now passes both positive and negative paths on Windows. Goo
 **Result:** rebuilt Setup SHA `a0a96b...40c88` installed successfully in an isolated root with protected 3-rule companion ACL and no public integration. Previous hosted evidence already proved nonzero child failures propagate as Setup exit 200.
 
 **← CURRENT:** commit/push the exact-DACL writer and local evidence; require hosted Windows native + Linux regression + build PASS on that exact head before merge/release.
+
+### 2026-10-06 — Browser rc.6 release-infrastructure recovery
+
+**Previous accepted product state:** rc.5 exact product tree qualified on hosted Windows/Linux and was merged as `f34f012`.
+
+**Failure:** official rc.5 Release workflow did not publish because the mutable Chocolatey feed stopped serving pinned Inno Setup 6.7.3. Runtime/installer acceptance did not regress.
+
+**Current delta:** rc.6 retains the Browser runtime and pins the official immutable Inno Setup 6.7.3 release asset by exact SHA-256 plus Authenticode signer verification. rc.5 tag remains unchanged for provenance.
+
+**← CURRENT:** locally validate rc.6 metadata + Setup build/isolated install, then push PR and require exact-head Windows/Linux gates. Merge/tag/release only after all PASS.
+
+### 2026-10-06 — Browser rc.6 local PASS
+
+**Result:** official Inno 6.7.3 bootstrap script PASS by exact hash/signature; rc.6 Setup build PASS; silent isolated rc.6 Setup PASS with exact private 3-rule ACL.
+
+**Prevention:** the same pinned compiler bootstrap is now exercised in PR Windows qualification and reused by tag Release, so mutable Chocolatey-feed drift cannot first appear only after tagging.
+
+**← CURRENT:** commit/push rc.6 branch; require all hosted exact-head gates. No tag until merge-tree equality is verified.
+
+### 2026-10-06 — Browser rc.6 Inno space-path fix
+
+**Root cause:** shared bootstrap did not quote the portable installer `/DIR` path; hosted default contains spaces. Both independent hosted Windows runs failed at the same point.
+
+**Fix + local proof:** quote `/DIR`; real default path with spaces now returns `INNO_SETUP_PIN_PASS` with exact hash/signer and compiler readback.
+
+**← CURRENT:** push new exact head and require fresh Windows PR gate. Linux/companion on the prior runtime-equivalent head were already PASS.

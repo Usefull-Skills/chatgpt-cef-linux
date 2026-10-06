@@ -20,11 +20,11 @@ jobs:
         run: |
           $version=(Get-Content VERSION -Raw).Trim()
           if('${{ github.ref_name }}' -ne "v$version"){ throw "Tag/version mismatch" }
-      - name: Install pinned Inno Setup
+      - name: Install verified pinned Inno Setup
         shell: pwsh
         run: |
-          choco install innosetup --version=6.7.3 -y --no-progress
-          if($LASTEXITCODE -ne 0){ throw "Inno install failed: $LASTEXITCODE" }
+          ./scripts/install-inno-setup.ps1
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
       - name: Build Windows native payload
         shell: pwsh
         run: |
