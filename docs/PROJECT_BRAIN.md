@@ -202,3 +202,7 @@ full installer rollback remain separate acceptance gates. No tag or live rollout
 Previous accepted candidate: rc.9 exact head 95b8c01b5169201e7a2d1955ab72530e9fe73827 with hosted Release, Build/Linux-native, and Windows-native gates PASS. Stable mutation is identity/publication-policy only; CEF runtime/source behavior is unchanged.
 
 Current gate: local stable release-integrity tests then hosted exact-head Release/Build/Windows-native on the stable identity. No tag/release before all hosted gates PASS.
+
+### 2026-10-06 — stable launcher fixture identity correction
+
+PR #70 exact head `9120c545820cd58d7eed53393f081218e280899a` passed hosted Linux native build/package and Windows native preview, but the Ubuntu release-contract job failed only because its POSIX fixture still hard-coded `runtime-v0.8.0-rc.9/chrome-sandbox` after the stable identity became `0.8.0`. The production launcher/package scripts and native builds were already PASS. The fixture now derives that path from `VERSION`. Exact corrected test SHA-256 is `3f15de3d357b0094981055b7a642c0b6e4452cffce49f67a9f3ddd60fd49b90f`; Linux full release-integrity suite is 15/15 PASS and Windows contract PASS with three POSIX-only skips. Runtime `src/` remains byte-unchanged from rc.9.

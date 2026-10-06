@@ -196,7 +196,7 @@ class ReleaseIntegrityTests(unittest.TestCase):
             "#!" + sys.executable,
             "import os,pathlib,sys",
             "a=sys.argv[1:]",
-            "expected=pathlib.Path(os.environ['TEST_HOME'])/'.local/share/chatgpt-cef-v2/runtime-v0.8.0-rc.9/chrome-sandbox'",
+            f"expected=pathlib.Path(os.environ['TEST_HOME'])/'.local/share/chatgpt-cef-v2/runtime-v{VERSION}/chrome-sandbox'",
             "if len(a)!=3 or a[:2]!=['-Lc','%a %U %G'] or pathlib.Path(a[2])!=expected: raise SystemExit(93)",
             "print('4755 root root')",
             "",
