@@ -40,7 +40,9 @@ jobs:
           $version=(Get-Content VERSION -Raw).Trim()
           $setup="dist/installer/Remote-Commander-Browser-Setup-v$version.exe"
           if(-not(Test-Path $setup)){ throw 'Setup missing' }
-          (Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant() + "  " + [IO.Path]::GetFileName($setup) |
+          $releaseSetup="dist/Remote-Commander-Browser-Setup-v$version.exe"
+          Copy-Item -LiteralPath $setup -Destination $releaseSetup
+          (Get-FileHash $releaseSetup -Algorithm SHA256).Hash.ToLowerInvariant() + "  " + [IO.Path]::GetFileName($releaseSetup) |
             Set-Content "dist/SHA256SUMS-setup-v$version.txt" -Encoding ascii
       - uses: actions/upload-artifact@v4
         with:
@@ -48,7 +50,7 @@ jobs:
           path: |
             dist/remote-commander-browser-v*-windows-x86_64.zip
             dist/SHA256SUMS-windows-v*.txt
-            dist/installer/Remote-Commander-Browser-Setup-v*.exe
+            dist/Remote-Commander-Browser-Setup-v*.exe
             dist/SHA256SUMS-setup-v*.txt
           if-no-files-found: error
 
@@ -110,6 +112,7 @@ jobs:
           test "$(git rev-list -n 1 "$tag")" = "$GITHUB_SHA"
           notes="docs/RELEASE_$version.md"
           test -f "$notes"
+          test -f "dist/release/Remote-Commander-Browser-Setup-v$version.exe"
           cd dist/release
           find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -printf '%f\n' | LC_ALL=C sort | while read -r f; do sha256sum "$f"; done > SHA256SUMS.txt
           sha256sum -c SHA256SUMS.txt

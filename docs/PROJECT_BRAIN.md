@@ -129,3 +129,17 @@ Local isolated Setup now passes both positive and negative paths on Windows. Goo
 **Fix + local proof:** quote `/DIR`; real default path with spaces now returns `INNO_SETUP_PIN_PASS` with exact hash/signer and compiler readback.
 
 **← CURRENT:** push new exact head and require fresh Windows PR gate. Linux/companion on the prior runtime-equivalent head were already PASS.
+
+### 2026-10-06 — Browser rc.7 release-layout gate
+
+**Previous state:** rc.6 runtime/build gates PASS and tag Release workflow SUCCESS, but published Release omitted the standalone Windows Setup because it remained nested under `installer/` while publish selected top-level files only.
+
+**Current delta:** rc.7 keeps runtime semantics unchanged, copies Setup to the release artifact root, and fails publication if the top-level Setup is missing.
+
+**← CURRENT:** static/local release-contract validation, push PR, require exact-head Windows/Linux PASS, then merge/tag rc.7 and verify published Setup asset + checksum before Commander may pin it.
+
+### 2026-10-06 — Browser rc.7 local layout PASS
+
+**Result:** YAML parse/diff checks PASS; actual rc.7 Setup compiled with Inno 6.7.3; top-level release copy is byte-identical to built Setup (local SHA `4f21ca40...9fb181`). Runtime semantics remain inherited from qualified rc.6.
+
+**← CURRENT:** commit/push rc.7 and require hosted Windows native Setup acceptance + Build/Linux PASS. Only then merge/tag and verify the published GitHub Release contains the top-level Setup asset and aggregate checksum.
