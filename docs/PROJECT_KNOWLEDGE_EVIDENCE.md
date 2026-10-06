@@ -52,3 +52,59 @@
 - Decision: no second rendering engine. Prefer CEF-native in-process DevTools APIs for any future visible-browser instrumentation; keep Commander background automation isolated from the authenticated Browser profile. A second engine requires a concrete compatibility failure plus evidence that it resolves the failure.
 - Confidence/Status: CONFIRMED/HIGH for local Windows drag geometry, lifecycle, package and production-profile separation. Hosted exact-head Windows+Linux CI and release promotion remain OPEN.
 - Reuse Targets: Browser architecture, release notes, session-safety policy, Commander Browser integration, QA.
+
+### 2026-10-06 — Windows standalone installer and session-safe rc.5 qualification
+
+- **Objective:** make Remote Commander Browser installable as one standalone Windows Setup and as an optional Commander component without mutating the authenticated Chromium profile.
+- **Delta:** Windows CEF extraction no longer requires 7-Zip; `tar.exe` is the built-in fallback. `scripts/install-windows.ps1` accepts explicit source/version/install/companion paths and a QA-only `-NoPublicIntegration` mode while preserving production defaults. The standalone Inno Setup embeds the native payload, verified PowerShell prerequisite bootstrap, installer script and branding.
+- **Security/session evidence:** isolated script-level install and the actual Setup EXE both completed with protected companion ACL and exact product manifest. Fingerprints for production `Local State`, `Default\\Network\\Cookies`, and `Default\\Login Data` remained unchanged. No authenticated profile was launched or copied during qualification.
+- **Local rc.5 qualification:** CEF-free companion contract 1/1 PASS; Windows private-file guard PASS; native lifecycle self-test PASS; Windows ZIP package PASS; standalone Setup compile PASS; silent isolated Setup acceptance PASS. Native exe SHA-256 `1b43d6ef084c24baa42566df8e1910f62dff665b0717fb3f2a0e3f587b706e34`; rc.5 Windows ZIP SHA-256 `2e91ba31a316469b833cfc50ea472b9f8a8bfc0bd6f47fb435686d5888a5abbe`; standalone Setup SHA-256 `86162caa43a6ad265b677636072badaf49311b9abe476188d7943c76a592288f`.
+- **CI prevention:** Windows workflow now builds the Setup and performs a silent isolated install with manifest and ACL readback. Windows and Linux native gates remain required on exact head before promotion.
+- **Signing status:** no valid local Code Signing certificate with private key is installed. The Setup is therefore `NotSigned`; self-signing is not treated as a substitute for public publisher trust. This is an **EXTERNAL/MISSING signing authority**, not a hidden PASS.
+- **Status:** local implementation = CONFIRMED PASS; hosted exact-head CI/release = OPEN.
+
+### 2026-10-06 — Hosted Windows Setup blocker narrowed to child installer exit
+
+- **Context:** PR #65 exact head `a324b8c` reran Windows/Linux hosted gates after adding Setup diagnostics. Linux regression, Linux release build, and companion contract passed; Windows native failed only in the silent isolated Setup acceptance stage.
+- **Confirmed evidence:** Inno Setup compiled the rc.5 installer successfully. The Setup log shows all custom parameters (`-InstallRoot`, `-CompanionRoot`, `-NoPublicIntegration`) were passed exactly to `install-windows.ps1`. The PowerShell child exited with code **1**; both QA and default install roots remained absent. Inno itself returned success despite the child failure, so Setup fail-closed semantics are also an open defect.
+- **Method evidence:** current Inno Setup documentation/revision history explicitly provides the `logoutput` flag and `ExecAndLogOutput` for capturing child process output in Setup logs. The minimum next control is therefore to enable `logoutput` on the existing [Run] entry and rerun the same hosted gate before changing ACL/install logic.
+- **Status:** root cause of the child exit remains **UNVERIFIED**; parameter propagation is **CONFIRMED GOOD**. Browser rc.5 remains blocked from merge/release.
+- **Reuse targets:** Windows installer runbook, CI failure-prevention, release checklist.
+
+### 2026-10-06 — Hosted Windows Browser Setup root cause confirmed and fail-closed repair
+
+- **Confirmed root cause:** exact-head hosted log with child-output capture shows `install-windows.ps1` exits 1 at `BROWSER_COMPANION_ACL_OWNER_MISMATCH`. Custom Inno parameters are correct; the failure occurs because the hosted QA directory inherits an owner different from the current runner identity, while the native Windows private-file guard intentionally requires owner == current user.
+- **Repair:** preserve the strict native owner invariant. When the installer detects an owner mismatch, it uses Windows `icacls /setowner` with the current identity, verifies the resulting owner SID, then applies the existing inheritance-removal/current-user+SYSTEM+Administrators full-control DACL and performs the existing private-ACL readback. No broad principal is added.
+- **Fail-closed Setup:** the embedded PowerShell installer is no longer a [Run] entry whose nonzero result can be masked. Inno Pascal `ExecAndLogOutput` now runs it during `ssPostInstall`, logs child output, and raises a fatal Setup exception when the child exit code is nonzero.
+- **Evidence hierarchy:** Microsoft documents `icacls /setowner`; current Inno Setup documents `logoutput`/`ExecAndLogOutput`. Hosted rerun on the repaired exact head remains required before promotion.
+- **Status:** local code repair = PROPOSAL pending parser/build/isolated-install regression and hosted Windows PASS. Browser rc.5 remains UNPROVEN for release.
+
+### 2026-10-06 — Local Browser Setup owner-repair + fail-closed regression PASS
+
+- **Exact artifact:** `Remote-Commander-Browser-Setup-v0.8.0-rc.5.exe`, SHA-256 `96793f036d62fe3ccad5dec2065e02c1dd97ecb6996d6e737fce01234ddcf396`.
+- **Success-path evidence:** isolated silent Setup returned 0; installed `0.8.0-rc.5`; `publicIntegration=false`; companion root ACL inheritance is protected.
+- **Failure-path evidence:** a deterministic invalid InstallRoot (regular file instead of directory) forced the embedded helper to fail. Setup returned custom exit code **200** via `GetCustomSetupExitCode`; no `product-install.json` was promoted under the bad root. This proves child failure is no longer masked as Setup success.
+- **Status:** local Windows regression PASS. Hosted Windows exact-head PASS remains required before merge/release. Login/profile state was not touched by these isolated QA roots.
+- **Reuse targets:** Browser release evidence, Commander bundled-browser contract, Windows installer regression suite.
+
+### 2026-10-06 — Browser Windows ACL exact-writer follow-up
+
+- Hosted head `93b98eb` proved two things: Setup fail-closed propagation now works (Setup exits 200 when child fails), and owner repair progresses past the previous owner mismatch. The remaining hosted failure is `BROWSER_COMPANION_ACL_VERIFY_FAILED`.
+- Local script-level acceptance with the proposed exact `.NET DirectorySecurity` writer passed: owner=current user, inheritance protected, and exactly three explicit FullControl ACEs for current-user SID, SYSTEM and BUILTIN\Administrators.
+- The DACL writer now creates a fresh protected `DirectorySecurity` rather than relying on cross-host `icacls /grant:r` normalization. `icacls` remains limited to owner repair. If verification still fails, the installer emits structured owner/protected/rule diagnostics before failing.
+- Comparison research: official Remote Desktop Commander emphasizes OAuth/device pairing, file/terminal/process/session operations; Microsoft Playwright MCP explicitly models persistent vs isolated browser profiles and exclusive profile ownership. Current Remote Commander already has per-profile capability authority, durable workflows and isolated profile state; the release-critical gap is Windows Browser installation determinism rather than additional capability breadth.
+- Status: exact-DACL repair locally PASS at script level; Setup artifact rebuild and hosted Windows rerun are required before Browser rc.5 merge/release.
+
+### 2026-10-06 — Browser rc.5 exact-DACL local Setup acceptance
+
+- **Local Setup artifact:** rebuilt `Remote-Commander-Browser-Setup-v0.8.0-rc.5.exe` with SHA-256 `a0a96b9059d2467b1eb669041b33b6f3c02cc7254ed32353374b0e01eee40c88`.
+- **Acceptance:** silent isolated install through the actual Setup EXE completed exit 0; `product-install.json` reports `0.8.0-rc.5`, `publicIntegration=false`; companion directory readback shows protected ACL with exactly three explicit rules. Authenticated production profile/login state was not used or mutated.
+- **Fail-closed evidence:** previous hosted head already proved the unchanged Inno fail-closed path by returning Setup exit 200 when the embedded installer failed. The only code delta since then is deterministic DACL writing/diagnostics.
+- **Promotion gate:** hosted Windows exact-head must pass owner repair + exact DACL + Setup acceptance before merge/release.
+
+### 2026-10-06 — Browser rc.5 release-note checksum authority correction
+
+- **Issue:** pre-release notes carried hashes from an earlier local build. After the final ACL repair, those bytes are no longer release-authoritative and hosted/tag builds may differ from local qualification builds.
+- **Decision:** remove hard-coded local artifact hashes from release notes. The immutable tag release workflow rebuilds artifacts, creates and verifies `SHA256SUMS.txt`, and that published checksum file is the only release artifact identity. Local hashes remain qualification evidence only.
+- **Reason:** prevents stale provenance from being published while preserving reproducible tag→workflow→checksum authority.
+- **Status:** documentation-only delta; exact-head CI remains required because release metadata is part of the product release contract.

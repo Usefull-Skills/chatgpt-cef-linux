@@ -57,3 +57,49 @@ System.Object[]
 - Decision: no second rendering engine. Prefer CEF-native in-process DevTools APIs for any future visible-browser instrumentation; keep Commander background automation isolated from the authenticated Browser profile. A second engine requires a concrete compatibility failure plus evidence that it resolves the failure.
 - Confidence/Status: CONFIRMED/HIGH for local Windows drag geometry, lifecycle, package and production-profile separation. Hosted exact-head Windows+Linux CI and release promotion remain OPEN.
 - Reuse Targets: Browser architecture, release notes, session-safety policy, Commander Browser integration, QA.
+
+### 2026-10-06 — Browser rc.5 standalone installer candidate
+
+**Previous accepted state:** main/rc.4 had session-safe native Browser and read-only Commander companion, but no official standalone Setup EXE and Windows build required 7-Zip when extracting CEF.
+
+**Current delta:** rc.5 candidate builds a native Windows Browser, ZIP package and standalone Inno Setup; the actual Setup completed isolated silent install with private companion ACL and zero production session-file changes. Windows CI now includes Setup build/install acceptance. 7-Zip is optional because Windows tar.exe is supported.
+
+**Evidence:** contract/private-file/native lifecycle/package/Setup gates all PASS locally. Setup SHA-256 = `86162caa43a6ad265b677636072badaf49311b9abe476188d7943c76a592288f`.
+
+**Open gate:** exact-head hosted Windows + Linux CI, merge/release, and production upgrade/readback. Authenticode signing is MISSING/EXTERNAL because no valid Code Signing certificate is installed.
+
+**Exact next action:** commit/push rc.5 installer candidate, require exact-head CI PASS, then merge/tag/release and perform session-preserving live upgrade/readback.
+
+### 2026-10-06 — Browser rc.5 hosted Setup blocker narrowed
+
+**Current result:** PR #65 head `a324b8c`: Linux regression/build + companion contract PASS; Windows native fails only after Setup launches the embedded PowerShell installer. Custom QA paths are propagated correctly, but the child exits 1 and no install root is created. Setup currently masks that child failure with exit 0.
+
+**← CURRENT:** enable official Inno child-output logging only, rerun exact hosted Windows gate, then fix the evidenced child error and make Setup fail closed on nonzero child exit. No merge/release until that sequence passes.
+
+### 2026-10-06 — Browser rc.5 owner-repair / fail-closed Setup change
+
+**Root cause:** hosted Windows proved `BROWSER_COMPANION_ACL_OWNER_MISMATCH`; parameter propagation and Browser build were good. The strict owner invariant remains authoritative.
+
+**Current delta:** installer now repairs owner to the current identity with official Windows ACL tooling, verifies owner SID, then applies/verifies the private DACL. Setup now executes the child via Inno `ExecAndLogOutput` and treats child exit != 0 as fatal instead of returning success.
+
+**← CURRENT:** local compile + isolated Setup regression, then exact-head hosted Windows/Linux gates. Merge/release remains blocked until hosted Windows PASS.
+
+### 2026-10-06 — Browser local release gate PASS after owner/fail-closed repair
+
+Local isolated Setup now passes both positive and negative paths on Windows. Good path installs rc.5 with private companion ACL; deterministic child failure returns Setup exit 200 and promotes nothing. Artifact SHA-256: `96793f036d62fe3ccad5dec2065e02c1dd97ecb6996d6e737fce01234ddcf396`.
+
+**← CURRENT:** commit/push this exact change set and require hosted Windows native + Linux regression/build + companion contract PASS on the pushed SHA before merge/release.
+
+### 2026-10-06 — Browser rc.5 exact DACL writer
+
+**Previous blocker:** hosted Windows passed owner repair but failed strict DACL readback. Setup failure propagation is now proven fail-closed (exit 200).
+
+**Current delta:** protected DACL is now written deterministically with a fresh `.NET DirectorySecurity` containing exactly current user + SYSTEM + Administrators FullControl ACEs; local script QA PASS. A structured diagnostic is emitted before any future verify failure.
+
+**← CURRENT:** rebuild Setup with this helper, local Setup acceptance, commit/push exact head, require hosted Windows + Linux gates PASS. No release/merge before those gates.
+
+### 2026-10-06 — Browser rc.5 local Setup PASS after exact DACL
+
+**Result:** rebuilt Setup SHA `a0a96b...40c88` installed successfully in an isolated root with protected 3-rule companion ACL and no public integration. Previous hosted evidence already proved nonzero child failures propagate as Setup exit 200.
+
+**← CURRENT:** commit/push the exact-DACL writer and local evidence; require hosted Windows native + Linux regression + build PASS on that exact head before merge/release.

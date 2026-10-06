@@ -47,19 +47,27 @@ if(Test-Path -LiteralPath $Archive){
   Move-Item -LiteralPath $part -Destination $Archive
 }
 
-$SevenZip=(Get-Command 7z.exe -ErrorAction Stop).Source
+$SevenZip=(Get-Command 7z.exe -ErrorAction SilentlyContinue)
+$Tar=(Get-Command tar.exe -ErrorAction SilentlyContinue)
+if(-not $SevenZip -and -not $Tar){ throw 'CEF extraction requires either Windows tar.exe or 7z.exe.' }
 $tmp=Join-Path $Deps ('.cef-win-extract.'+[Guid]::NewGuid().ToString('N'))
 $payload=Join-Path $tmp 'payload'
 New-Item -ItemType Directory -Force $tmp,$payload | Out-Null
 try{
-  Write-Output "CEF_FETCH_STAGE extract-bzip2 started=$([DateTime]::UtcNow.ToString('o'))"
-  & $SevenZip x -y "-o$tmp" $Archive
-  if($LASTEXITCODE -ne 0){ throw "7z bzip2 extraction failed exit=$LASTEXITCODE" }
-  $tar=Get-ChildItem -LiteralPath $tmp -Filter '*.tar' -File | Select-Object -First 1
-  if(!$tar){ throw 'Intermediate CEF tar missing after bzip2 extraction' }
-  Write-Output "CEF_FETCH_STAGE extract-tar started=$([DateTime]::UtcNow.ToString('o'))"
-  & $SevenZip x -y "-o$payload" $tar.FullName
-  if($LASTEXITCODE -ne 0){ throw "7z tar extraction failed exit=$LASTEXITCODE" }
+  if($SevenZip){
+    Write-Output "CEF_FETCH_STAGE extract-bzip2-7z started=$([DateTime]::UtcNow.ToString('o'))"
+    & $SevenZip.Source x -y "-o$tmp" $Archive
+    if($LASTEXITCODE -ne 0){ throw "7z bzip2 extraction failed exit=$LASTEXITCODE" }
+    $intermediate=Get-ChildItem -LiteralPath $tmp -Filter '*.tar' -File | Select-Object -First 1
+    if(!$intermediate){ throw 'Intermediate CEF tar missing after bzip2 extraction' }
+    Write-Output "CEF_FETCH_STAGE extract-tar-7z started=$([DateTime]::UtcNow.ToString('o'))"
+    & $SevenZip.Source x -y "-o$payload" $intermediate.FullName
+    if($LASTEXITCODE -ne 0){ throw "7z tar extraction failed exit=$LASTEXITCODE" }
+  }else{
+    Write-Output "CEF_FETCH_STAGE extract-bsdtar started=$([DateTime]::UtcNow.ToString('o'))"
+    & $Tar.Source -xjf $Archive -C $payload
+    if($LASTEXITCODE -ne 0){ throw "Windows tar extraction failed exit=$LASTEXITCODE" }
+  }
   $extracted=Join-Path $payload $Name
   if(!(Test-Path -LiteralPath $extracted -PathType Container)){ throw 'Unexpected CEF archive layout' }
   Move-Item -LiteralPath $extracted -Destination $CefRoot

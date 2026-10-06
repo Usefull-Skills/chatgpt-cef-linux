@@ -2,7 +2,7 @@ name: Windows native preview
 
 on:
   push:
-    branches: [feature/v0.8.0-rc.2-windows]
+    branches: [main, release/v0.8.0-rc.5]
   pull_request:
 
 permissions:
@@ -18,7 +18,7 @@ jobs:
       - name: Verify preview version
         shell: pwsh
         run: |
-          if((Get-Content VERSION -Raw).Trim() -ne '0.8.0-rc.4'){ throw 'VERSION mismatch' }
+          if((Get-Content VERSION -Raw).Trim() -ne '0.8.0-rc.5'){ throw 'VERSION mismatch' }
 
       - name: Companion contract tests (CEF-free)
         shell: pwsh
@@ -136,12 +136,51 @@ jobs:
         shell: pwsh
         run: ./scripts/package-windows.ps1
 
+      - name: Build standalone Windows Setup
+        shell: pwsh
+        run: |
+          ./scripts/build-windows-installer.ps1
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+
+      - name: Silent isolated Setup acceptance
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $setup=(Resolve-Path 'dist/installer/Remote-Commander-Browser-Setup-v0.8.0-rc.5.exe').Path
+          $root=Join-Path $env:RUNNER_TEMP 'rc-browser-setup-qa'
+          $install=Join-Path $root 'browser'
+          $companion=Join-Path $root 'companion'
+          Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
+          $setupLog=Join-Path $env:RUNNER_TEMP 'rc-browser-setup.log'
+          $args=@('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/LOG='+$setupLog),('/RCInstallRoot='+$install),('/RCCompanionRoot='+$companion),'/RCNoPublicIntegration=1')
+          $p=Start-Process -FilePath $setup -ArgumentList $args -Wait -PassThru
+          Write-Output ("BROWSER_SETUP_EXIT="+$p.ExitCode)
+          Write-Output ("QA_INSTALL_ROOT="+$install)
+          Write-Output ("QA_COMPANION_ROOT="+$companion)
+          if(Test-Path $setupLog){ Write-Output '---SETUP LOG TAIL---'; Get-Content $setupLog -Tail 120 }
+          $defaultRoot=Join-Path $env:LOCALAPPDATA 'Programs\Remote Commander Browser'
+          Write-Output ("QA_ROOT_EXISTS="+(Test-Path $install))
+          Write-Output ("DEFAULT_ROOT_EXISTS="+(Test-Path $defaultRoot))
+          Get-ChildItem $root,$defaultRoot -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object {$_.Name -in @('chatgpt-cef-v2.exe','product-install.json')} |
+            Select-Object FullName,Length,LastWriteTime | Format-Table -AutoSize
+          if($p.ExitCode -ne 0){ throw "BROWSER_SETUP_EXIT:$($p.ExitCode)" }
+          $exe=Join-Path $install 'current\chatgpt-cef-v2.exe'
+          $record=Join-Path $install 'current\product-install.json'
+          if(-not(Test-Path $exe -PathType Leaf)){ throw 'BROWSER_SETUP_EXE_MISSING' }
+          if(-not(Test-Path $record -PathType Leaf)){ throw 'BROWSER_SETUP_RECORD_MISSING' }
+          $json=Get-Content $record -Raw|ConvertFrom-Json
+          if($json.version -ne '0.8.0-rc.5' -or $json.publicIntegration -ne $false){ throw 'BROWSER_SETUP_RECORD_INVALID' }
+          $acl=Get-Acl $companion
+          if(-not$acl.AreAccessRulesProtected){ throw 'BROWSER_SETUP_COMPANION_ACL_INVALID' }
+          Write-Output 'BROWSER_SETUP_ISOLATED_PASS'
+
       - uses: actions/upload-artifact@v4
         with:
-          name: remote-commander-browser-v0.8.0-rc.4-windows-x86_64
+          name: remote-commander-browser-v0.8.0-rc.5-windows-x86_64
           path: |
-            dist/remote-commander-browser-v0.8.0-rc.4-windows-x86_64.zip
-            dist/SHA256SUMS-windows-v0.8.0-rc.4.txt
+            dist/remote-commander-browser-v0.8.0-rc.5-windows-x86_64.zip
+            dist/SHA256SUMS-windows-v0.8.0-rc.5.txt
           if-no-files-found: error
 
 
@@ -196,7 +235,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: remote-commander-browser-v0.8.0-rc.4-linux-x86_64
+          name: remote-commander-browser-v0.8.0-rc.5-linux-x86_64
           path: |
             build/bin/
             build/BINARY_SHA256-linux.txt
