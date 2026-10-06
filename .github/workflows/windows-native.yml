@@ -151,8 +151,19 @@ jobs:
           $install=Join-Path $root 'browser'
           $companion=Join-Path $root 'companion'
           Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
-          $args=@('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/RCInstallRoot='+$install),('/RCCompanionRoot='+$companion),'/RCNoPublicIntegration=1')
+          $setupLog=Join-Path $env:RUNNER_TEMP 'rc-browser-setup.log'
+          $args=@('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/LOG='+$setupLog),('/RCInstallRoot='+$install),('/RCCompanionRoot='+$companion),'/RCNoPublicIntegration=1')
           $p=Start-Process -FilePath $setup -ArgumentList $args -Wait -PassThru
+          Write-Output ("BROWSER_SETUP_EXIT="+$p.ExitCode)
+          Write-Output ("QA_INSTALL_ROOT="+$install)
+          Write-Output ("QA_COMPANION_ROOT="+$companion)
+          if(Test-Path $setupLog){ Write-Output '---SETUP LOG TAIL---'; Get-Content $setupLog -Tail 120 }
+          $defaultRoot=Join-Path $env:LOCALAPPDATA 'Programs\Remote Commander Browser'
+          Write-Output ("QA_ROOT_EXISTS="+(Test-Path $install))
+          Write-Output ("DEFAULT_ROOT_EXISTS="+(Test-Path $defaultRoot))
+          Get-ChildItem $root,$defaultRoot -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object {$_.Name -in @('chatgpt-cef-v2.exe','product-install.json')} |
+            Select-Object FullName,Length,LastWriteTime | Format-Table -AutoSize
           if($p.ExitCode -ne 0){ throw "BROWSER_SETUP_EXIT:$($p.ExitCode)" }
           $exe=Join-Path $install 'current\chatgpt-cef-v2.exe'
           $record=Join-Path $install 'current\product-install.json'
