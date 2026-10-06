@@ -170,3 +170,10 @@
 - **External evidence:** official upload-artifact usage explicitly supports uploading an entire directory by passing the directory path directly. The simpler contract avoids Windows wildcard matching entirely.
 - **Fix:** use `path: dist/release-windows/` while retaining the preceding exact four-file filename/count guard. No runtime or artifact-content changes.
 - **Status:** fresh exact-head Release PR run required; failed head is not rerun blindly.
+
+### 2026-10-06 — rc.8 upload action runtime root cause and dependency correction
+
+- **Second exact-head PR run:** `37450922952` on `2e73dbe` again produced exact four-file Windows staging successfully, but `actions/upload-artifact@v4` reported no files for the immediately-following directory upload. Linux release upload on the same workflow passed. This isolates the failure to the Windows artifact action/search layer, not build/staging.
+- **Current ecosystem evidence:** GitHub is forcing Node-20 actions onto Node 24 on current hosted runners; the v4 run emitted that deprecation/forced-runtime warning. Official `actions/upload-artifact` current README examples use v7, and official v7.0.1 is a native current release. Tag `v7.0.1` resolves to commit `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`.
+- **Decision:** pin both Release-workflow upload steps to exact official upload-artifact v7.0.1 SHA. Do not perturb already-green non-release workflows. Keep the explicit four-file staging guard and whole-directory path unchanged so only the action runtime/dependency changes.
+- **Status:** fresh exact-head Release PR gate required; no rerun of failed v4 head.

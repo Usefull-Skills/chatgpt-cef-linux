@@ -157,3 +157,9 @@ Local isolated Setup now passes both positive and negative paths on Windows. Goo
 **Result:** hosted rc.8 stage produced exactly four required Windows files; Linux Release job PASS. Only upload selector failed on the Windows wildcard. Changed to official whole-directory upload while retaining exact pre-upload guard.
 
 **← CURRENT:** push new exact head and require fresh Release PR PASS.
+
+### 2026-10-06 — Browser rc.8 artifact action updated to native Node 24 release
+
+**Evidence:** Windows four-file staging PASS twice; v4 upload search failed twice while running under GitHub's forced Node 24 compatibility path. Official current upload-artifact v7.0.1 is pinned by exact SHA `043fb46d...` for Release workflow only.
+
+**← CURRENT:** fresh rc.8 Release PR gate on the pinned action; merge/tag only after it and existing product gates PASS.
