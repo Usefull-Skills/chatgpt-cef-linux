@@ -16,12 +16,27 @@ on:
       - 'scripts/fetch-cef.sh'
       - 'scripts/build-release.sh'
       - 'scripts/package-release.sh'
+      - 'scripts/verify-release-assets.py'
+      - 'scripts/test-release-integrity.py'
       - 'docs/RELEASE_*.md'
 
 permissions:
   contents: write
 
 jobs:
+  release-contract:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify release integrity contracts
+        run: python scripts/test-release-integrity.py
+
   windows:
     runs-on: windows-2022
     timeout-minutes: 70
@@ -121,7 +136,7 @@ jobs:
 
   publish:
     if: github.event_name != 'pull_request'
-    needs: [windows, linux]
+    needs: [windows, linux, release-contract]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -145,13 +160,25 @@ jobs:
           notes="docs/RELEASE_$version.md"
           test -f "$notes"
           test -f "dist/release/Remote-Commander-Browser-Setup-v$version.exe"
+          python3 scripts/verify-release-assets.py "$version" dist/release
           cd dist/release
           find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -printf '%f\n' | LC_ALL=C sort | while read -r f; do sha256sum "$f"; done > SHA256SUMS.txt
           sha256sum -c SHA256SUMS.txt
           cd ../..
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "RELEASE_ALREADY_EXISTS $tag"
-            exit 0
+            echo "RELEASE_ALREADY_EXISTS_RECONCILE $tag" >&2
+            exit 1
           fi
           mapfile -t assets < <(find dist/release -maxdepth 1 -type f -printf '%p\n' | LC_ALL=C sort)
-          gh release create "$tag" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Remote Commander Browser $tag" --notes-file "$notes"
+          release_flags=(--latest)
+          expected_prerelease=false
+          if [[ "$version" == *-* ]]; then
+            release_flags=(--prerelease --latest=false)
+            expected_prerelease=true
+          fi
+          gh release create "$tag" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Remote Commander Browser $tag" --notes-file "$notes" "${release_flags[@]}"
+          immutable="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" --jq '.immutable')"
+          actual_prerelease="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" --jq '.prerelease')"
+          test "$immutable" = true
+          test "$actual_prerelease" = "$expected_prerelease"
+          echo "RELEASE_METADATA_VERIFIED immutable=true prerelease=$actual_prerelease"

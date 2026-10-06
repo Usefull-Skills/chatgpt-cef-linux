@@ -169,3 +169,40 @@ Local isolated Setup now passes both positive and negative paths on Windows. Goo
 **Root cause:** a nullable `$LASTEXITCODE` check after the PowerShell-only packaging script silently exited the GitHub step with code 0 before installer/staging. This explains all “files not found” upload failures.
 
 **Fix:** remove those inappropriate LASTEXITCODE guards; rely on script exceptions. Keep exact four-file staging guard. **← CURRENT:** fresh exact-head Release PR gate must show installer + staging runtime markers and upload PASS.
+
+
+### 2026-10-06 - rc.9 release integrity recovery
+
+Scope: metadata, producer checksums and release infrastructure only; source root isolated from active Commander development. Baseline b45cb2b5042318866fe4287bacd1323f4793718a. A new 14-case contract suite rejects the previous publication policy before mutation; the Windows post-change run passed 12 cases with 2 native POSIX skips. Native Linux packaging/symlink tests and all hosted exact-head gates remain open at this checkpoint. Whole product NOT_FINAL. See RELEASE_0.8.0-rc.9.md. Old rc.8 staging-PASS and upload-runtime root-cause claims are superseded by the independently reproduced nullable-LASTEXITCODE false-success. Existing rc.8 assets/tag are preserved; no production runtime or source/src changes.
+
+Repository future-release immutability was enabled through the existing authorized CLI and independently read back true at 2026-10-06T11:35:15Z; existing rc.8 remains mutable and is not converted by this setting. Its preview classification was separately corrected without asset/tag changes.
+
+
+### 2026-10-06 - R4 Linux generated launcher repair
+
+An isolated execution of the actual generated installer on the previous candidate
+failed before launching the Browser: RUNTIME: unbound variable. Real privilege
+commands were replaced with guarded no-op fixtures; no installed profiles changed.
+The nested unquoted heredoc expanded launcher-only variables during installation.
+The launcher body now uses a quoted delimiter, with installation target and verified
+hash values supplied through Bash printf %q. Existing ownership and digest guards
+remain enabled. GNU Bash Redirections/Here Documents and Bash Builtins/printf are
+the primary semantics reference; source syntax alone was not acceptance evidence.
+
+A new native POSIX functional case covers generated installation, HOME with spaces,
+literal argument forwarding including Unicode, and binary/sandbox tamper rejection.
+The suite now has15 distinct cases: Windows can execute12 with3 POSIX skips. Native
+Linux before/after proof and hosted exact-head checks must be separately recorded.
+This fixes the generated shell contract; real CEF UI, SUID/privilege behavior and
+full installer rollback remain separate acceptance gates. No tag or live rollout.
+
+
+### 2026-10-06 — v0.8.0 stable promotion candidate
+
+Previous accepted candidate: rc.9 exact head 95b8c01b5169201e7a2d1955ab72530e9fe73827 with hosted Release, Build/Linux-native, and Windows-native gates PASS. Stable mutation is identity/publication-policy only; CEF runtime/source behavior is unchanged.
+
+Current gate: local stable release-integrity tests then hosted exact-head Release/Build/Windows-native on the stable identity. No tag/release before all hosted gates PASS.
+
+### 2026-10-06 — stable launcher fixture identity correction
+
+PR #70 exact head `9120c545820cd58d7eed53393f081218e280899a` passed hosted Linux native build/package and Windows native preview, but the Ubuntu release-contract job failed only because its POSIX fixture still hard-coded `runtime-v0.8.0-rc.9/chrome-sandbox` after the stable identity became `0.8.0`. The production launcher/package scripts and native builds were already PASS. The fixture now derives that path from `VERSION`. Exact corrected test SHA-256 is `3f15de3d357b0094981055b7a642c0b6e4452cffce49f67a9f3ddd60fd49b90f`; Linux full release-integrity suite is 15/15 PASS and Windows contract PASS with three POSIX-only skips. Runtime `src/` remains byte-unchanged from rc.9.

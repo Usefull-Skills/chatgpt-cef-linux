@@ -36,15 +36,12 @@ sudo chown root:root "\$TARGET/chrome-sandbox"
 sudo chmod 4755 "\$TARGET/chrome-sandbox"
 BIN_SHA=\$(sha256sum "\$TARGET/chatgpt-cef-v2" | awk '{print \$1}')
 SAN_SHA=\$(sha256sum "\$TARGET/chrome-sandbox" | awk '{print \$1}')
-cat > "\$LAUNCHER" <<LAUNCH
-#!/usr/bin/env bash
-set -euo pipefail
-umask 077
-RUNTIME="\$HOME/.local/share/chatgpt-cef-v2/runtime-v${VERSION}"
+{
+  printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'umask 077'
+  printf 'RUNTIME=%q\nEXPECTED_BIN_SHA=%q\nEXPECTED_SANDBOX_SHA=%q\n' "\$TARGET" "\$BIN_SHA" "\$SAN_SHA"
+  cat <<'LAUNCH'
 BIN="\$RUNTIME/chatgpt-cef-v2"
 SANDBOX="\$RUNTIME/chrome-sandbox"
-EXPECTED_BIN_SHA="\$BIN_SHA"
-EXPECTED_SANDBOX_SHA="\$SAN_SHA"
 fail(){ printf 'ChatGPT CEF V2: %s\\n' "\$1" >&2; exit "\$2"; }
 [[ -x "\$BIN" ]] || fail "executable missing" 20
 [[ -f "\$SANDBOX" ]] || fail "sandbox missing" 21
@@ -55,6 +52,7 @@ read -r mode owner group < <(stat -Lc '%a %U %G' "\$SANDBOX")
 cd "\$RUNTIME"
 exec "\$BIN" "\$@"
 LAUNCH
+} > "\$LAUNCHER"
 chmod 0755 "\$LAUNCHER"
 cat > "\$DESKTOP" <<DESKTOP
 [Desktop Entry]
@@ -106,5 +104,5 @@ TXT
 
 rm -f "$ARCHIVE" "$ARCHIVE.sha256"
 tar -C "$DIST" -czf "$ARCHIVE" "$NAME"
-sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+(cd "$DIST" && sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
 printf 'PACKAGE=%s\nSHA256=%s\n' "$ARCHIVE" "$(awk '{print $1}' "$ARCHIVE.sha256")"
