@@ -91,16 +91,45 @@ function Ensure-PrivateDirectory([string]$Path) {
     if($owner.Value-ne$user.Value){throw 'BROWSER_COMPANION_ACL_OWNER_MISMATCH_AFTER_REPAIR'}
   }
 
-  $args=@(
-    $Path,
-    '/inheritance:r',
-    '/grant:r',("*"+$user.Value+":(OI)(CI)F"),
-    '/grant:r','*S-1-5-18:(OI)(CI)F',
-    '/grant:r','*S-1-5-32-544:(OI)(CI)F'
-  )
-  & $icacls @args | Out-Null
-  if($LASTEXITCODE-ne0){throw "BROWSER_COMPANION_ACL_REPAIR_FAILED exit=$LASTEXITCODE"}
-  if(-not(Test-PrivateDirectoryAcl $Path)){throw 'BROWSER_COMPANION_ACL_VERIFY_FAILED'}
+  $privateAcl=[Security.AccessControl.DirectorySecurity]::new()
+  $privateAcl.SetOwner($user)
+  $privateAcl.SetAccessRuleProtection($true,$false)
+  $inherit=[Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit'
+  $propagate=[Security.AccessControl.PropagationFlags]::None
+  foreach($sid in @(
+    $user,
+    [Security.Principal.SecurityIdentifier]::new('S-1-5-18'),
+    [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
+  )){
+    $rule=[Security.AccessControl.FileSystemAccessRule]::new(
+      $sid,
+      [Security.AccessControl.FileSystemRights]::FullControl,
+      $inherit,
+      $propagate,
+      [Security.AccessControl.AccessControlType]::Allow
+    )
+    [void]$privateAcl.AddAccessRule($rule)
+  }
+  Set-Acl -LiteralPath $Path -AclObject $privateAcl
+  if(-not(Test-PrivateDirectoryAcl $Path)){
+    $check=Get-Acl -LiteralPath $Path
+    $checkRules=@($check.GetAccessRules($true,$false,[Security.Principal.SecurityIdentifier]) | ForEach-Object {
+      [ordered]@{
+        sid=$_.IdentityReference.Value
+        type=[string]$_.AccessControlType
+        rights=[string]$_.FileSystemRights
+        inheritance=[string]$_.InheritanceFlags
+        propagation=[string]$_.PropagationFlags
+        inherited=[bool]$_.IsInherited
+      }
+    })
+    Write-Output ('BROWSER_COMPANION_ACL_DIAGNOSTIC '+([ordered]@{
+      owner=$check.Owner
+      protected=[bool]$check.AreAccessRulesProtected
+      rules=$checkRules
+    }|ConvertTo-Json -Depth 6 -Compress))
+    throw 'BROWSER_COMPANION_ACL_VERIFY_FAILED'
+  }
 }
 Ensure-PrivateDirectory $CompanionRoot
 

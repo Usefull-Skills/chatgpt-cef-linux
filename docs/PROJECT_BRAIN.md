@@ -89,3 +89,17 @@ System.Object[]
 Local isolated Setup now passes both positive and negative paths on Windows. Good path installs rc.5 with private companion ACL; deterministic child failure returns Setup exit 200 and promotes nothing. Artifact SHA-256: `96793f036d62fe3ccad5dec2065e02c1dd97ecb6996d6e737fce01234ddcf396`.
 
 **← CURRENT:** commit/push this exact change set and require hosted Windows native + Linux regression/build + companion contract PASS on the pushed SHA before merge/release.
+
+### 2026-10-06 — Browser rc.5 exact DACL writer
+
+**Previous blocker:** hosted Windows passed owner repair but failed strict DACL readback. Setup failure propagation is now proven fail-closed (exit 200).
+
+**Current delta:** protected DACL is now written deterministically with a fresh `.NET DirectorySecurity` containing exactly current user + SYSTEM + Administrators FullControl ACEs; local script QA PASS. A structured diagnostic is emitted before any future verify failure.
+
+**← CURRENT:** rebuild Setup with this helper, local Setup acceptance, commit/push exact head, require hosted Windows + Linux gates PASS. No release/merge before those gates.
+
+### 2026-10-06 — Browser rc.5 local Setup PASS after exact DACL
+
+**Result:** rebuilt Setup SHA `a0a96b...40c88` installed successfully in an isolated root with protected 3-rule companion ACL and no public integration. Previous hosted evidence already proved nonzero child failures propagate as Setup exit 200.
+
+**← CURRENT:** commit/push the exact-DACL writer and local evidence; require hosted Windows native + Linux regression + build PASS on that exact head before merge/release.

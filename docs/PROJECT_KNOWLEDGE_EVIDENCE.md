@@ -86,3 +86,18 @@
 - **Failure-path evidence:** a deterministic invalid InstallRoot (regular file instead of directory) forced the embedded helper to fail. Setup returned custom exit code **200** via `GetCustomSetupExitCode`; no `product-install.json` was promoted under the bad root. This proves child failure is no longer masked as Setup success.
 - **Status:** local Windows regression PASS. Hosted Windows exact-head PASS remains required before merge/release. Login/profile state was not touched by these isolated QA roots.
 - **Reuse targets:** Browser release evidence, Commander bundled-browser contract, Windows installer regression suite.
+
+### 2026-10-06 — Browser Windows ACL exact-writer follow-up
+
+- Hosted head `93b98eb` proved two things: Setup fail-closed propagation now works (Setup exits 200 when child fails), and owner repair progresses past the previous owner mismatch. The remaining hosted failure is `BROWSER_COMPANION_ACL_VERIFY_FAILED`.
+- Local script-level acceptance with the proposed exact `.NET DirectorySecurity` writer passed: owner=current user, inheritance protected, and exactly three explicit FullControl ACEs for current-user SID, SYSTEM and BUILTIN\Administrators.
+- The DACL writer now creates a fresh protected `DirectorySecurity` rather than relying on cross-host `icacls /grant:r` normalization. `icacls` remains limited to owner repair. If verification still fails, the installer emits structured owner/protected/rule diagnostics before failing.
+- Comparison research: official Remote Desktop Commander emphasizes OAuth/device pairing, file/terminal/process/session operations; Microsoft Playwright MCP explicitly models persistent vs isolated browser profiles and exclusive profile ownership. Current Remote Commander already has per-profile capability authority, durable workflows and isolated profile state; the release-critical gap is Windows Browser installation determinism rather than additional capability breadth.
+- Status: exact-DACL repair locally PASS at script level; Setup artifact rebuild and hosted Windows rerun are required before Browser rc.5 merge/release.
+
+### 2026-10-06 — Browser rc.5 exact-DACL local Setup acceptance
+
+- **Local Setup artifact:** rebuilt `Remote-Commander-Browser-Setup-v0.8.0-rc.5.exe` with SHA-256 `a0a96b9059d2467b1eb669041b33b6f3c02cc7254ed32353374b0e01eee40c88`.
+- **Acceptance:** silent isolated install through the actual Setup EXE completed exit 0; `product-install.json` reports `0.8.0-rc.5`, `publicIntegration=false`; companion directory readback shows protected ACL with exactly three explicit rules. Authenticated production profile/login state was not used or mutated.
+- **Fail-closed evidence:** previous hosted head already proved the unchanged Inno fail-closed path by returning Setup exit 200 when the embedded installer failed. The only code delta since then is deterministic DACL writing/diagnostics.
+- **Promotion gate:** hosted Windows exact-head must pass owner repair + exact DACL + Setup acceptance before merge/release.
