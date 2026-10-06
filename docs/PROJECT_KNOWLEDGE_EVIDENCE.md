@@ -101,3 +101,10 @@
 - **Acceptance:** silent isolated install through the actual Setup EXE completed exit 0; `product-install.json` reports `0.8.0-rc.5`, `publicIntegration=false`; companion directory readback shows protected ACL with exactly three explicit rules. Authenticated production profile/login state was not used or mutated.
 - **Fail-closed evidence:** previous hosted head already proved the unchanged Inno fail-closed path by returning Setup exit 200 when the embedded installer failed. The only code delta since then is deterministic DACL writing/diagnostics.
 - **Promotion gate:** hosted Windows exact-head must pass owner repair + exact DACL + Setup acceptance before merge/release.
+
+### 2026-10-06 — Browser rc.5 release-note checksum authority correction
+
+- **Issue:** pre-release notes carried hashes from an earlier local build. After the final ACL repair, those bytes are no longer release-authoritative and hosted/tag builds may differ from local qualification builds.
+- **Decision:** remove hard-coded local artifact hashes from release notes. The immutable tag release workflow rebuilds artifacts, creates and verifies `SHA256SUMS.txt`, and that published checksum file is the only release artifact identity. Local hashes remain qualification evidence only.
+- **Reason:** prevents stale provenance from being published while preserving reproducible tag→workflow→checksum authority.
+- **Status:** documentation-only delta; exact-head CI remains required because release metadata is part of the product release contract.

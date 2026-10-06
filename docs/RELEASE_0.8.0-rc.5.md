@@ -19,11 +19,9 @@
 - isolated Setup install + manifest + ACL readback: PASS;
 - production `Local State`, `Cookies`, and `Login Data` fingerprints unchanged.
 
-## Artifact identities
+## Artifact integrity
 
-- native exe SHA-256: `1b43d6ef084c24baa42566df8e1910f62dff665b0717fb3f2a0e3f587b706e34`;
-- Windows ZIP SHA-256: `2e91ba31a316469b833cfc50ea472b9f8a8bfc0bd6f47fb435686d5888a5abbe`;
-- Windows Setup SHA-256: `86162caa43a6ad265b677636072badaf49311b9abe476188d7943c76a592288f`.
+The release workflow rebuilds the Windows and Linux artifacts from the immutable tag, computes their hashes, verifies them, and publishes `SHA256SUMS.txt` with the GitHub Release. That published checksum file is the authoritative artifact identity; local pre-release build hashes are qualification evidence only and are not release identities.
 
 ## Signing
 
