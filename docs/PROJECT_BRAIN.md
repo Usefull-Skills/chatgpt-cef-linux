@@ -169,3 +169,10 @@ Local isolated Setup now passes both positive and negative paths on Windows. Goo
 **Root cause:** a nullable `$LASTEXITCODE` check after the PowerShell-only packaging script silently exited the GitHub step with code 0 before installer/staging. This explains all “files not found” upload failures.
 
 **Fix:** remove those inappropriate LASTEXITCODE guards; rely on script exceptions. Keep exact four-file staging guard. **← CURRENT:** fresh exact-head Release PR gate must show installer + staging runtime markers and upload PASS.
+
+
+### 2026-10-06 - rc.9 release integrity recovery
+
+Scope: metadata, producer checksums and release infrastructure only; source root isolated from active Commander development. Baseline b45cb2b5042318866fe4287bacd1323f4793718a. A new 14-case contract suite rejects the previous publication policy before mutation; the Windows post-change run passed 12 cases with 2 native POSIX skips. Native Linux packaging/symlink tests and all hosted exact-head gates remain open at this checkpoint. Whole product NOT_FINAL. See RELEASE_0.8.0-rc.9.md. Old rc.8 staging-PASS and upload-runtime root-cause claims are superseded by the independently reproduced nullable-LASTEXITCODE false-success. Existing rc.8 assets/tag are preserved; no production runtime or source/src changes.
+
+Repository future-release immutability was enabled through the existing authorized CLI and independently read back true at 2026-10-06T11:35:15Z; existing rc.8 remains mutable and is not converted by this setting. Its preview classification was separately corrected without asset/tag changes.

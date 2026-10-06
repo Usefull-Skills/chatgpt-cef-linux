@@ -185,3 +185,10 @@
 - **Rejected hypotheses:** artifact action v4/v7, wildcard/directory syntax, and staging-layout assumptions did not explain the missing runtime stage marker. Those changes were diagnostic but not causal.
 - **Prevention:** remove native-process `$LASTEXITCODE` guards immediately after PowerShell-only scripts; rely on their terminating exceptions (`$ErrorActionPreference='Stop'` / `throw`). Retain explicit artifact staging/name/count guard.
 - **Regression:** require runtime `REMOTE_COMMANDER_BROWSER_SETUP_BUILD_PASS`, runtime `WINDOWS_RELEASE_STAGE_PASS count=4`, and successful artifact upload on a fresh exact-head Release PR run before merge/tag.
+
+
+### 2026-10-06 - rc.9 release integrity recovery
+
+Scope: metadata, producer checksums and release infrastructure only; source root isolated from active Commander development. Baseline b45cb2b5042318866fe4287bacd1323f4793718a. A new 14-case contract suite rejects the previous publication policy before mutation; the Windows post-change run passed 12 cases with 2 native POSIX skips. Native Linux packaging/symlink tests and all hosted exact-head gates remain open at this checkpoint. Whole product NOT_FINAL. See RELEASE_0.8.0-rc.9.md. Old rc.8 staging-PASS and upload-runtime root-cause claims are superseded by the independently reproduced nullable-LASTEXITCODE false-success. Existing rc.8 assets/tag are preserved; no production runtime or source/src changes.
+
+Repository future-release immutability was enabled through the existing authorized CLI and independently read back true at 2026-10-06T11:35:15Z; existing rc.8 remains mutable and is not converted by this setting. Its preview classification was separately corrected without asset/tag changes.

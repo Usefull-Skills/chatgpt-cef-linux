@@ -106,5 +106,5 @@ TXT
 
 rm -f "$ARCHIVE" "$ARCHIVE.sha256"
 tar -C "$DIST" -czf "$ARCHIVE" "$NAME"
-sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+(cd "$DIST" && sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
 printf 'PACKAGE=%s\nSHA256=%s\n' "$ARCHIVE" "$(awk '{print $1}' "$ARCHIVE.sha256")"
