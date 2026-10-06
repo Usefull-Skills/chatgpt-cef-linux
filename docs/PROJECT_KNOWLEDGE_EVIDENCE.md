@@ -177,3 +177,11 @@
 - **Current ecosystem evidence:** GitHub is forcing Node-20 actions onto Node 24 on current hosted runners; the v4 run emitted that deprecation/forced-runtime warning. Official `actions/upload-artifact` current README examples use v7, and official v7.0.1 is a native current release. Tag `v7.0.1` resolves to commit `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`.
 - **Decision:** pin both Release-workflow upload steps to exact official upload-artifact v7.0.1 SHA. Do not perturb already-green non-release workflows. Keep the explicit four-file staging guard and whole-directory path unchanged so only the action runtime/dependency changes.
 - **Status:** fresh exact-head Release PR gate required; no rerun of failed v4 head.
+
+### 2026-10-06 — rc.8 release Windows root cause confirmed: nullable LASTEXITCODE caused silent early exit
+
+- **Evidence:** exact-head v7 run `37452064191` showed the package/stage step command text containing package → LASTEXITCODE check → installer → staging, but runtime output contained only `WINDOWS_PACKAGE_PASS` and then the next upload action. No installer JSON and no runtime `WINDOWS_RELEASE_STAGE_PASS` appeared.
+- **Root cause:** `scripts/package-windows.ps1` is PowerShell-cmdlet-only. In a fresh pwsh step it does not set `$LASTEXITCODE`, so the value remains `$null`. In PowerShell, `$null -ne 0` evaluates true; `exit $null` exits successfully (code 0), silently terminating the step before installer/staging.
+- **Rejected hypotheses:** artifact action v4/v7, wildcard/directory syntax, and staging-layout assumptions did not explain the missing runtime stage marker. Those changes were diagnostic but not causal.
+- **Prevention:** remove native-process `$LASTEXITCODE` guards immediately after PowerShell-only scripts; rely on their terminating exceptions (`$ErrorActionPreference='Stop'` / `throw`). Retain explicit artifact staging/name/count guard.
+- **Regression:** require runtime `REMOTE_COMMANDER_BROWSER_SETUP_BUILD_PASS`, runtime `WINDOWS_RELEASE_STAGE_PASS count=4`, and successful artifact upload on a fresh exact-head Release PR run before merge/tag.

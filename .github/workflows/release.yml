@@ -50,9 +50,7 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/package-windows.ps1
-          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
           ./scripts/build-windows-installer.ps1
-          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
           $version=(Get-Content VERSION -Raw).Trim()
           $setup="dist/installer/Remote-Commander-Browser-Setup-v$version.exe"
           if(-not(Test-Path -LiteralPath $setup -PathType Leaf)){ throw 'Setup missing' }

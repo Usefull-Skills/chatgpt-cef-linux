@@ -163,3 +163,9 @@ Local isolated Setup now passes both positive and negative paths on Windows. Goo
 **Evidence:** Windows four-file staging PASS twice; v4 upload search failed twice while running under GitHub's forced Node 24 compatibility path. Official current upload-artifact v7.0.1 is pinned by exact SHA `043fb46d...` for Release workflow only.
 
 **← CURRENT:** fresh rc.8 Release PR gate on the pinned action; merge/tag only after it and existing product gates PASS.
+
+### 2026-10-06 — Browser rc.8 release blocker root-caused
+
+**Root cause:** a nullable `$LASTEXITCODE` check after the PowerShell-only packaging script silently exited the GitHub step with code 0 before installer/staging. This explains all “files not found” upload failures.
+
+**Fix:** remove those inappropriate LASTEXITCODE guards; rely on script exceptions. Keep exact four-file staging guard. **← CURRENT:** fresh exact-head Release PR gate must show installer + staging runtime markers and upload PASS.
