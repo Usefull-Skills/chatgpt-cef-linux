@@ -2,9 +2,11 @@
 
 ## Scope and acceptance boundary
 
-Release integrity hardening only. The Browser runtime, profile ownership, cookies,
-CEF source and native installer behavior are unchanged from rc.8. This is a
-pre-release, not whole-product FINAL or publisher-signature acceptance.
+Release integrity hardening plus a narrowly tested Linux launcher-template repair.
+Browser CEF source, profile ownership, cookies and Windows installer behavior are
+unchanged from rc.8. The Linux installer now defers launcher variable expansion
+correctly. This is a pre-release, not whole-product FINAL or publisher-signature
+acceptance.
 
 ## Confirmed defects and changes
 
@@ -32,3 +34,22 @@ published bytes again; PR artifacts and tag-rebuilt binaries have distinct hashe
 The existing rc.8 release is preserved; do not replace its assets or move its tag.
 Code signing is still external. Authenticated UI, native worker, sustained recovery,
 combined Commander installer and serial live rollout are separate acceptance gates.
+
+
+### 2026-10-06 - R4 Linux generated launcher repair
+
+An isolated execution of the actual generated installer on the previous candidate
+failed before launching the Browser: RUNTIME: unbound variable. Real privilege
+commands were replaced with guarded no-op fixtures; no installed profiles changed.
+The nested unquoted heredoc expanded launcher-only variables during installation.
+The launcher body now uses a quoted delimiter, with installation target and verified
+hash values supplied through Bash printf %q. Existing ownership and digest guards
+remain enabled. GNU Bash Redirections/Here Documents and Bash Builtins/printf are
+the primary semantics reference; source syntax alone was not acceptance evidence.
+
+A new native POSIX functional case covers generated installation, HOME with spaces,
+literal argument forwarding including Unicode, and binary/sandbox tamper rejection.
+The suite now has15 distinct cases: Windows can execute12 with3 POSIX skips. Native
+Linux before/after proof and hosted exact-head checks must be separately recorded.
+This fixes the generated shell contract; real CEF UI, SUID/privilege behavior and
+full installer rollback remain separate acceptance gates. No tag or live rollout.

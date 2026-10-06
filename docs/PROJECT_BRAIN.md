@@ -176,3 +176,22 @@ Local isolated Setup now passes both positive and negative paths on Windows. Goo
 Scope: metadata, producer checksums and release infrastructure only; source root isolated from active Commander development. Baseline b45cb2b5042318866fe4287bacd1323f4793718a. A new 14-case contract suite rejects the previous publication policy before mutation; the Windows post-change run passed 12 cases with 2 native POSIX skips. Native Linux packaging/symlink tests and all hosted exact-head gates remain open at this checkpoint. Whole product NOT_FINAL. See RELEASE_0.8.0-rc.9.md. Old rc.8 staging-PASS and upload-runtime root-cause claims are superseded by the independently reproduced nullable-LASTEXITCODE false-success. Existing rc.8 assets/tag are preserved; no production runtime or source/src changes.
 
 Repository future-release immutability was enabled through the existing authorized CLI and independently read back true at 2026-10-06T11:35:15Z; existing rc.8 remains mutable and is not converted by this setting. Its preview classification was separately corrected without asset/tag changes.
+
+
+### 2026-10-06 - R4 Linux generated launcher repair
+
+An isolated execution of the actual generated installer on the previous candidate
+failed before launching the Browser: RUNTIME: unbound variable. Real privilege
+commands were replaced with guarded no-op fixtures; no installed profiles changed.
+The nested unquoted heredoc expanded launcher-only variables during installation.
+The launcher body now uses a quoted delimiter, with installation target and verified
+hash values supplied through Bash printf %q. Existing ownership and digest guards
+remain enabled. GNU Bash Redirections/Here Documents and Bash Builtins/printf are
+the primary semantics reference; source syntax alone was not acceptance evidence.
+
+A new native POSIX functional case covers generated installation, HOME with spaces,
+literal argument forwarding including Unicode, and binary/sandbox tamper rejection.
+The suite now has15 distinct cases: Windows can execute12 with3 POSIX skips. Native
+Linux before/after proof and hosted exact-head checks must be separately recorded.
+This fixes the generated shell contract; real CEF UI, SUID/privilege behavior and
+full installer rollback remain separate acceptance gates. No tag or live rollout.

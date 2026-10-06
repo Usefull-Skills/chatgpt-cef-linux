@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded release-contract regression. Payloads are nonexecutable fixtures."""
+"""Bounded release-contract regression using harmless non-product fixtures."""
 from __future__ import annotations
 import hashlib
 import importlib.util
@@ -155,6 +155,94 @@ class ReleaseIntegrityTests(unittest.TestCase):
             capture_output=True, text=True, timeout=10,
         )
         self.assertEqual(check.returncode, 0, check.stderr)
+
+
+    @unittest.skipUnless(os.name == "posix", "native generated Linux installer and launcher")
+    def test_generated_linux_installer_launcher_and_hash_guards(self):
+        import sys
+        fixture = self.root / "generated installer project"
+        home = self.root / "home with spaces"
+        tools = self.root / "guarded fixture tools"
+        for directory in ("scripts", "build/bin", ".deps/cef"):
+            (fixture / directory).mkdir(parents=True, exist_ok=True)
+        home.mkdir()
+        tools.mkdir()
+        shutil.copyfile(ROOT / "scripts/package-release.sh", fixture / "scripts/package-release.sh")
+        (fixture / "VERSION").write_text(VERSION + "\n", encoding="ascii")
+        payload = "#!/bin/sh\nprintf '<%s>\\n' \"$@\"\n"
+        for name in ("chatgpt-cef-v2", "chrome-sandbox"):
+            (fixture / "build/bin" / name).write_text(payload, encoding="ascii")
+            (fixture / "build/bin" / name).chmod(0o755)
+        for name in ("LICENSE.txt", "CREDITS.html"):
+            (fixture / ".deps/cef" / name).write_text("FIXTURE ONLY\n", encoding="ascii")
+        for name in ("NOTICE.md", "THIRD_PARTY_NOTICES.md", "RELEASE_NOTES.md"):
+            (fixture / name).write_text("FIXTURE ONLY\n", encoding="ascii")
+        package = subprocess.run(
+            ["bash", str(fixture / "scripts/package-release.sh")],
+            cwd=self.root, capture_output=True, text=True, timeout=30,
+        )
+        self.assertEqual(package.returncode, 0, package.stderr)
+        # Never execute sudo or change real ownership/SUID permissions.
+        sudo_stub = "\n".join([
+            "#!" + sys.executable,
+            "import os,pathlib,sys",
+            "a=sys.argv[1:]",
+            "if len(a)!=3 or a[:2] not in [['chown','root:root'],['chmod','4755']]: raise SystemExit(91)",
+            "if not pathlib.Path(a[2]).resolve().is_relative_to(pathlib.Path(os.environ['TEST_HOME']).resolve()): raise SystemExit(92)",
+            "raise SystemExit(0)",
+            "",
+        ])
+        stat_stub = "\n".join([
+            "#!" + sys.executable,
+            "import os,pathlib,sys",
+            "a=sys.argv[1:]",
+            "expected=pathlib.Path(os.environ['TEST_HOME'])/'.local/share/chatgpt-cef-v2/runtime-v0.8.0-rc.9/chrome-sandbox'",
+            "if len(a)!=3 or a[:2]!=['-Lc','%a %U %G'] or pathlib.Path(a[2])!=expected: raise SystemExit(93)",
+            "print('4755 root root')",
+            "",
+        ])
+        for name, content in (("sudo", sudo_stub), ("stat", stat_stub)):
+            (tools / name).write_text(content, encoding="utf-8")
+            (tools / name).chmod(0o755)
+        env = {
+            "HOME": str(home), "PATH": str(tools) + ":/usr/bin:/bin",
+            "TEST_HOME": str(home), "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
+        }
+        stage = fixture / "dist" / f"remote-commander-browser-v{VERSION}-linux-x86_64"
+        install = subprocess.run(
+            ["bash", str(stage / "install.sh")], cwd=stage, env=env,
+            capture_output=True, text=True, timeout=15,
+        )
+        self.assertEqual(install.returncode, 0, install.stderr)
+        launcher = home / ".local/bin/chatgpt-cef-v2"
+        self.assertIn('exec "$BIN" "$@"', launcher.read_text(encoding="utf-8"))
+        syntax = subprocess.run(
+            ["bash", "-n", str(launcher)], env=env, capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(syntax.returncode, 0, syntax.stderr)
+        arguments = ["alpha beta", "*.txt", "--literal=$HOME", "فارسی"]
+        launch = subprocess.run(
+            [str(launcher), *arguments], env=env, capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(launch.returncode, 0, launch.stderr)
+        self.assertEqual(launch.stdout, "".join("<" + value + ">\n" for value in arguments))
+        runtime = home / ".local/share/chatgpt-cef-v2" / f"runtime-v{VERSION}"
+        binary = runtime / "chatgpt-cef-v2"
+        original = binary.read_bytes()
+        binary.write_bytes(original + b"# TAMPER\n")
+        rejected = subprocess.run(
+            [str(launcher)], env=env, capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(rejected.returncode, 23, rejected.stderr)
+        self.assertEqual(rejected.stdout, "")
+        binary.write_bytes(original)
+        sandbox = runtime / "chrome-sandbox"
+        sandbox.write_bytes(sandbox.read_bytes() + b"# TAMPER\n")
+        rejected = subprocess.run(
+            [str(launcher)], env=env, capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(rejected.returncode, 24, rejected.stderr)
+        self.assertEqual(rejected.stdout, "")
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
