@@ -143,3 +143,29 @@ Local isolated Setup now passes both positive and negative paths on Windows. Goo
 **Result:** YAML parse/diff checks PASS; actual rc.7 Setup compiled with Inno 6.7.3; top-level release copy is byte-identical to built Setup (local SHA `4f21ca40...9fb181`). Runtime semantics remain inherited from qualified rc.6.
 
 **← CURRENT:** commit/push rc.7 and require hosted Windows native Setup acceptance + Build/Linux PASS. Only then merge/tag and verify the published GitHub Release contains the top-level Setup asset and aggregate checksum.
+
+### 2026-10-06 — Browser rc.8 release-path redesign
+
+**Previous state:** rc.7 runtime and tag Windows/Linux builds PASS, but publish guard caught incomplete downloaded release layout. This was the third release-infrastructure failure family occurrence.
+
+**Current delta:** explicit four-file Windows staging + exact filename/count guard + single staging upload; the same Release build path now runs on release-related PRs, with publish tag-only. Runtime semantics unchanged.
+
+**← CURRENT:** validate YAML/diff locally, push rc.8 PR, require Release PR build + existing Windows/Linux gates; only then merge/tag and verify published Setup + checksums.
+
+### 2026-10-06 — rc.8 staging PASS; upload selector narrowed
+
+**Result:** hosted rc.8 stage produced exactly four required Windows files; Linux Release job PASS. Only upload selector failed on the Windows wildcard. Changed to official whole-directory upload while retaining exact pre-upload guard.
+
+**← CURRENT:** push new exact head and require fresh Release PR PASS.
+
+### 2026-10-06 — Browser rc.8 artifact action updated to native Node 24 release
+
+**Evidence:** Windows four-file staging PASS twice; v4 upload search failed twice while running under GitHub's forced Node 24 compatibility path. Official current upload-artifact v7.0.1 is pinned by exact SHA `043fb46d...` for Release workflow only.
+
+**← CURRENT:** fresh rc.8 Release PR gate on the pinned action; merge/tag only after it and existing product gates PASS.
+
+### 2026-10-06 — Browser rc.8 release blocker root-caused
+
+**Root cause:** a nullable `$LASTEXITCODE` check after the PowerShell-only packaging script silently exited the GitHub step with code 0 before installer/staging. This explains all “files not found” upload failures.
+
+**Fix:** remove those inappropriate LASTEXITCODE guards; rely on script exceptions. Keep exact four-file staging guard. **← CURRENT:** fresh exact-head Release PR gate must show installer + staging runtime markers and upload PASS.

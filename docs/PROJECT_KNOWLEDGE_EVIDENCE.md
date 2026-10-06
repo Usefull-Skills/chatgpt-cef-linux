@@ -152,3 +152,36 @@
 - **Release-layout acceptance:** copied the built Setup from `dist/installer/` to the exact top-level release path `dist/Remote-Commander-Browser-Setup-v0.8.0-rc.7.exe`; source and release copy SHA-256 values matched exactly. This validates the narrow rc.7 mutation locally.
 - **Proportional rigor:** no redundant local silent-install rerun was added because Browser runtime/installer semantics are unchanged from rc.6 and exact-head hosted Windows permanently performs the real standalone Setup build + isolated silent-install acceptance. The new release-layout contract is independently guarded by the top-level publish assertion.
 - **Status:** local rc.7 release-layout PASS; hosted exact-head Windows + Linux/Build remain the promotion gate.
+
+### 2026-10-06 — third release-infrastructure failure triggers release-path redesign (rc.8)
+
+- **Trigger:** rc.7 exact-head PR gates PASS and tag Windows/Linux build jobs PASS, but tag Release run `37449262110` failed in publish. The Windows `upload-artifact` step reported only **2 files** despite four path patterns, and the new publish assertion correctly rejected the missing top-level Setup after download.
+- **Failure family history:** rc.5 mutable Chocolatey compiler feed; rc.6 unquoted portable Inno target path; rc.7 release artifact layout. This is the third meaningful failure in the same release-infrastructure family, so further isolated patching was stopped.
+- **External method evidence:** official `actions/upload-artifact` documentation states wildcard hierarchy is preserved after the first wildcard and multiple paths use their least common ancestor as artifact root; official migration/download guidance documents `merge-multiple` semantics. Source: `https://github.com/actions/upload-artifact` README and migration docs.
+- **Root-cause class:** release correctness depended on implicit artifact path/glob/root behavior that was not exercised before tagging. Product runtime qualification remained green.
+- **rc.8 design:** stage exactly four Windows release files in one dedicated directory, assert exact filename set/count, upload one staging pattern, and run the same Release Windows/Linux build jobs on release-related PRs while keeping publish tag-only.
+- **Why this is minimum sufficient:** it removes implicit layout inference and moves the actual release implementation before promotion; no duplicate release workflow, recursive flattening, or extra runtime feature gate is introduced.
+- **Status:** rc.8 implementation pending YAML/static validation and hosted exact-head PR release-build PASS.
+
+### 2026-10-06 — rc.8 PR release gate first attempt: Windows directory wildcard rejected
+
+- **Exact-head PR run:** Release run `37450317568` on `17a5dac` reached `WINDOWS_RELEASE_STAGE_PASS count=4`; Linux release job PASS. Windows failed only at `actions/upload-artifact` because `path: dist/release-windows/*` returned “No files were found”.
+- **Interpretation:** file production/staging is proven; this is action path-selection behavior, not Browser build or Setup regression.
+- **External evidence:** official upload-artifact usage explicitly supports uploading an entire directory by passing the directory path directly. The simpler contract avoids Windows wildcard matching entirely.
+- **Fix:** use `path: dist/release-windows/` while retaining the preceding exact four-file filename/count guard. No runtime or artifact-content changes.
+- **Status:** fresh exact-head Release PR run required; failed head is not rerun blindly.
+
+### 2026-10-06 — rc.8 upload action runtime root cause and dependency correction
+
+- **Second exact-head PR run:** `37450922952` on `2e73dbe` again produced exact four-file Windows staging successfully, but `actions/upload-artifact@v4` reported no files for the immediately-following directory upload. Linux release upload on the same workflow passed. This isolates the failure to the Windows artifact action/search layer, not build/staging.
+- **Current ecosystem evidence:** GitHub is forcing Node-20 actions onto Node 24 on current hosted runners; the v4 run emitted that deprecation/forced-runtime warning. Official `actions/upload-artifact` current README examples use v7, and official v7.0.1 is a native current release. Tag `v7.0.1` resolves to commit `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`.
+- **Decision:** pin both Release-workflow upload steps to exact official upload-artifact v7.0.1 SHA. Do not perturb already-green non-release workflows. Keep the explicit four-file staging guard and whole-directory path unchanged so only the action runtime/dependency changes.
+- **Status:** fresh exact-head Release PR gate required; no rerun of failed v4 head.
+
+### 2026-10-06 — rc.8 release Windows root cause confirmed: nullable LASTEXITCODE caused silent early exit
+
+- **Evidence:** exact-head v7 run `37452064191` showed the package/stage step command text containing package → LASTEXITCODE check → installer → staging, but runtime output contained only `WINDOWS_PACKAGE_PASS` and then the next upload action. No installer JSON and no runtime `WINDOWS_RELEASE_STAGE_PASS` appeared.
+- **Root cause:** `scripts/package-windows.ps1` is PowerShell-cmdlet-only. In a fresh pwsh step it does not set `$LASTEXITCODE`, so the value remains `$null`. In PowerShell, `$null -ne 0` evaluates true; `exit $null` exits successfully (code 0), silently terminating the step before installer/staging.
+- **Rejected hypotheses:** artifact action v4/v7, wildcard/directory syntax, and staging-layout assumptions did not explain the missing runtime stage marker. Those changes were diagnostic but not causal.
+- **Prevention:** remove native-process `$LASTEXITCODE` guards immediately after PowerShell-only scripts; rely on their terminating exceptions (`$ErrorActionPreference='Stop'` / `throw`). Retain explicit artifact staging/name/count guard.
+- **Regression:** require runtime `REMOTE_COMMANDER_BROWSER_SETUP_BUILD_PASS`, runtime `WINDOWS_RELEASE_STAGE_PASS count=4`, and successful artifact upload on a fresh exact-head Release PR run before merge/tag.
