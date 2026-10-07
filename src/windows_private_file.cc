@@ -398,9 +398,54 @@ bool CreatePrivateGuiStop(const std::string& root, const std::string& message, s
   Handle directory = OpenRoot(root, canonical, root_before, error);
   if (!directory.valid()) return false;
   const std::wstring target = canonical + L"\\GUI_STOP";
+
+  // CREATE_NEW must be private from its first filesystem-visible instant.
+  // Inherited file ACLs are not guaranteed to remain owner-only on every
+  // supported Windows installation, even when the root directory passed
+  // our strict owner/DACL guard. Construct an explicit non-inheriting DACL.
+  std::vector<BYTE> owner_storage;
+  PSID owner_sid = nullptr;
+  if (!CurrentUserSid(owner_storage, owner_sid)) {
+    error = "GUI_STOP_OWNER_SID_UNAVAILABLE"; return false;
+  }
+  std::array<BYTE, SECURITY_MAX_SID_SIZE> system_storage{};
+  std::array<BYTE, SECURITY_MAX_SID_SIZE> admins_storage{};
+  DWORD system_size = static_cast<DWORD>(system_storage.size());
+  DWORD admins_size = static_cast<DWORD>(admins_storage.size());
+  PSID system_sid = system_storage.data(), admins_sid = admins_storage.data();
+  if (!CreateWellKnownSid(WinLocalSystemSid, nullptr, system_sid, &system_size) ||
+      !CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, admins_sid, &admins_size)) {
+    error = "GUI_STOP_TRUSTED_SID_UNAVAILABLE"; return false;
+  }
+  const std::array<PSID, 3> permitted = {owner_sid, system_sid, admins_sid};
+  std::array<EXPLICIT_ACCESSW, 3> entries{};
+  for (size_t index = 0; index < entries.size(); ++index) {
+    auto& ace = entries[index];
+    ace.grfAccessPermissions = FILE_ALL_ACCESS;
+    ace.grfAccessMode = SET_ACCESS;
+    ace.grfInheritance = NO_INHERITANCE;
+    ace.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+    ace.Trustee.TrusteeType = index == 0 ? TRUSTEE_IS_USER : TRUSTEE_IS_GROUP;
+    ace.Trustee.ptstrName = reinterpret_cast<LPWSTR>(permitted[index]);
+  }
+  struct ScopedAcl {
+    PACL value = nullptr;
+    ~ScopedAcl() { if (value) LocalFree(value); }
+  } private_acl;
+  if (SetEntriesInAclW(static_cast<ULONG>(entries.size()), entries.data(),
+                      nullptr, &private_acl.value) != ERROR_SUCCESS || !private_acl.value) {
+    error = "GUI_STOP_PRIVATE_DACL_BUILD_FAILED"; return false;
+  }
+  SECURITY_DESCRIPTOR descriptor{};
+  if (!InitializeSecurityDescriptor(&descriptor, SECURITY_DESCRIPTOR_REVISION) ||
+      !SetSecurityDescriptorOwner(&descriptor, owner_sid, FALSE) ||
+      !SetSecurityDescriptorDacl(&descriptor, TRUE, private_acl.value, FALSE)) {
+    error = "GUI_STOP_PRIVATE_DESCRIPTOR_INVALID"; return false;
+  }
+  SECURITY_ATTRIBUTES attributes{sizeof(SECURITY_ATTRIBUTES), &descriptor, FALSE};
   Handle file(CreateFileW(target.c_str(),
       GENERIC_WRITE | FILE_READ_ATTRIBUTES | READ_CONTROL,
-      FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, CREATE_NEW,
+      FILE_SHARE_READ | FILE_SHARE_DELETE, &attributes, CREATE_NEW,
       FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
   if (!file.valid()) {
     const DWORD code = GetLastError();
