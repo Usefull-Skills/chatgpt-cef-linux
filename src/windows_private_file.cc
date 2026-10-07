@@ -428,14 +428,16 @@ bool CreatePrivateGuiStop(const std::string& root, const std::string& message, s
     ace.Trustee.TrusteeType = index == 0 ? TRUSTEE_IS_USER : TRUSTEE_IS_GROUP;
     ace.Trustee.ptstrName = reinterpret_cast<LPWSTR>(permitted[index]);
   }
-  struct ScopedAcl {
-    PACL value = nullptr;
-    ~ScopedAcl() { if (value) LocalFree(value); }
-  } private_acl;
+  PACL allocated_acl = nullptr;
   if (SetEntriesInAclW(static_cast<ULONG>(entries.size()), entries.data(),
-                      nullptr, &private_acl.value) != ERROR_SUCCESS || !private_acl.value) {
+                      nullptr, &allocated_acl) != ERROR_SUCCESS || !allocated_acl) {
     error = "GUI_STOP_PRIVATE_DACL_BUILD_FAILED"; return false;
   }
+  struct ScopedAcl {
+    explicit ScopedAcl(PACL resource) : value(resource) {}
+    ~ScopedAcl() { LocalFree(value); }
+    PACL value;
+  } private_acl(allocated_acl);
   SECURITY_DESCRIPTOR descriptor{};
   if (!InitializeSecurityDescriptor(&descriptor, SECURITY_DESCRIPTOR_REVISION) ||
       !SetSecurityDescriptorOwner(&descriptor, owner_sid, FALSE) ||
