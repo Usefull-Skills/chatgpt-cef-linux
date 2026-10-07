@@ -6,9 +6,11 @@ A hardened, cross-platform native browser shell for Remote Commander workflows, 
 
 ## Release status
 
-**v0.8.0-rc.1 — Read-only companion preview / NOT STABLE**
+**v0.8.1 candidate — live local Commander monitoring, cross-platform**
 
-The current release baseline has passed a clean-from-scratch build with strict warnings-as-errors, static analysis, isolated runtime tab-lifecycle self-test, staged shutdown verification, dependency checks, secret/privacy scanning, RTL/LTR acceptance, upload/clipboard/voice acceptance, and single-instance validation.
+v0.8.1 keeps Browser-origin command authority disabled, but adds a native live monitor panel fed by an owner-private local snapshot written by Remote Commander Core. The panel reports Core identity, GUI-control readiness, background-browser readiness, durable workflow count, Agent Extension count, and active operation/lock counts on both Windows and Linux. Existing chat/project binding evidence remains an independent fail-closed read-only layer.
+
+The release baseline is qualified with strict warnings-as-errors, CEF-free positive/negative contract tests, isolated runtime lifecycle self-test, dependency checks, secret/privacy scanning, sandbox integrity, session/profile preservation, RTL/LTR acceptance, upload/clipboard/voice acceptance, and single-instance validation.
 
 ## Highlights
 

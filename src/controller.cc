@@ -47,7 +47,8 @@ constexpr int kCloseWindowButton = 24;
 constexpr int kCompanionButton = 25;
 constexpr int kCompanionRefreshButton = 30;
 constexpr int kCompanionRowBase = 300;
-constexpr int kCompanionWidth = 312;
+constexpr int kCompanionRowCount = 18;
+constexpr int kCompanionWidth = 360;
 constexpr int kTabButtonBase = 1000;
 constexpr int kTabCloseBase = 2000;
 
@@ -223,7 +224,7 @@ class AppController::ButtonDelegateImpl : public CefButtonDelegate {
     if (id == kBrandButton) return CefSize(kBrandWidth, 30);
     if (id == kCompanionButton) return CefSize(104, 30);
     if (id == kCompanionRefreshButton) return CefSize(kCompanionWidth - 24, 34);
-    if (id >= kCompanionRowBase && id < kCompanionRowBase + 16)
+    if (id >= kCompanionRowBase && id < kCompanionRowBase + kCompanionRowCount)
       return CefSize(kCompanionWidth - 24, 34);
     if (id >= kTabCloseBase) return CefSize(24, 28);
     if (id >= kTabButtonBase) return CefSize(148, 28);
@@ -619,7 +620,7 @@ void AppController::BuildCompanionPanel() {
   settings.inside_border_vertical_spacing = 10;
   settings.cross_axis_alignment = CEF_AXIS_ALIGNMENT_STRETCH;
   companion_panel_->SetToBoxLayout(settings);
-  for (int i = 0; i < 11; ++i) {
+  for (int i = 0; i < kCompanionRowCount; ++i) {
     auto row = CefLabelButton::CreateLabelButton(button_delegate_, "");
     row->SetID(kCompanionRowBase + i);
     row->SetFontList(i == 0 ? kUIBoldFont : kUIFont);
@@ -631,12 +632,12 @@ void AppController::BuildCompanionPanel() {
     companion_panel_->AddChildView(row);
     companion_rows_.push_back(row);
   }
-  auto refresh = CefLabelButton::CreateLabelButton(button_delegate_, "تازه‌سازی مشاهده محلی");
+  auto refresh = CefLabelButton::CreateLabelButton(button_delegate_, "تازه‌سازی مانیتور محلی");
   refresh->SetID(kCompanionRefreshButton);
   refresh->SetFontList(kUIFont);
   refresh->SetEnabledTextColors(kActiveText);
   refresh->SetBackgroundColor(kSoftAccentBg);
-  refresh->SetTooltipText("Reads private local snapshot only; no network, model or Commander operation.");
+  refresh->SetTooltipText("Reads private local Commander monitor/binding files only; no network, model or command execution.");
   refresh->SetAccessibleName("Refresh read-only local observation");
   companion_panel_->AddChildView(refresh);
   companion_overlay_ = window_->AddOverlayView(companion_panel_, CEF_DOCKING_MODE_CUSTOM, true);
@@ -656,6 +657,7 @@ void AppController::RefreshCompanion() {
   CEF_REQUIRE_UI_THREAD();
   if (closing_) return;
   const std::string root = companion::ProfileRoot();
+  companion_monitor_ = companion::ReadMonitor(root);
   companion_observation_ = companion::ReadObservation(root);
   companion_binding_ = companion::ReadNativeBinding(root);
   UpdateCompanionPanel();
@@ -672,7 +674,10 @@ void AppController::UpdateCompanionPanel() {
     auto frame = active->view->GetBrowser()->GetMainFrame();
     if (frame) active_url = frame->GetURL().ToString();
   }
-  const auto rows = companion::Describe(companion_observation_, companion_binding_, active_url, companion::NowEpochMs());
+  const uint64_t now=companion::NowEpochMs();
+  auto rows = companion::DescribeMonitor(companion_monitor_, now);
+  const auto binding_rows = companion::Describe(companion_observation_, companion_binding_, active_url, now);
+  rows.insert(rows.end(),binding_rows.begin(),binding_rows.end());
   for (size_t i = 0; i < companion_rows_.size(); ++i) {
     const bool visible = i < rows.size();
     companion_rows_[i]->SetVisible(visible);
@@ -688,10 +693,11 @@ void AppController::CompanionTick() {
   CEF_REQUIRE_UI_THREAD();
   companion_tick_scheduled_ = false;
   if (closing_ || !companion_visible_) return;
+  companion_monitor_ = companion::ReadMonitor(companion::ProfileRoot());
   UpdateCompanionPanel();
   companion_tick_scheduled_ = true;
-  // No captured controller pointer: a queued expiry tick cannot dereference a
-  // destroyed owner. It never reads files or invokes an external service.
+  // No captured controller pointer: a queued tick cannot dereference a
+  // destroyed owner. It only rereads one bounded private local monitor file.
   CefPostDelayedTask(TID_UI, base::BindOnce([]() {
     if (auto* controller = AppController::Get()) controller->CompanionTick();
   }), 1000);
@@ -707,6 +713,8 @@ void AppController::RunCompanionSelfTest() {
     companion_overlay_->GetBounds().width == kCompanionWidth;
 #if defined(_WIN32)
   const bool companion_safe =
+      !companion_monitor_.valid &&
+      companion_monitor_.error != "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE" &&
       !companion_observation_.valid &&
       companion_observation_.error != "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE" &&
       !companion_binding_.valid &&
@@ -714,10 +722,10 @@ void AppController::RunCompanionSelfTest() {
   const char* companion_check = "windows_private_file_guard_active";
 #else
   const bool companion_safe =
+      !companion_monitor_.valid && companion_monitor_.error == "MONITOR_MISSING" &&
       !companion_observation_.valid && companion_observation_.error == "SNAPSHOT_MISSING" &&
-      !companion_binding_.valid && companion_rows_.size() > 1 &&
-      companion_rows_[1]->GetText().ToString().find("UNPROVEN") != std::string::npos;
-  const char* companion_check = "missing_snapshot_unproven";
+      !companion_binding_.valid;
+  const char* companion_check = "missing_monitor_snapshot_unproven";
 #endif
   ToggleCompanionPanel();
   const bool hidden = companion_overlay_ && companion_overlay_->IsValid() && !companion_overlay_->IsVisible();
@@ -985,7 +993,7 @@ void AppController::OnButtonStateChanged(CefRefPtr<CefButton> button) {
   CEF_REQUIRE_UI_THREAD();
   if (!button) return;
   const int id = button->GetID();
-  if (id >= kCompanionRowBase && id < kCompanionRowBase + 16) {
+  if (id >= kCompanionRowBase && id < kCompanionRowBase + kCompanionRowCount) {
     button->SetBackgroundColor(kHeaderBg);
     if (auto label = button->AsLabelButton()) label->SetEnabledTextColors(kText);
     return;
