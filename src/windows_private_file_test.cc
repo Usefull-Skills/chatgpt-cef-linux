@@ -57,8 +57,10 @@ int wmain(int argc, wchar_t** argv) {
 
   error.clear();
   const std::string stop_message = "COMMANDER_NATIVE_GUI_EMERGENCY_STOP\n";
-  Check(companion::winprivate::CreatePrivateGuiStop(root, stop_message, error) && error.empty(),
-        "Windows owner-private native stop signal created");
+  const bool created = companion::winprivate::CreatePrivateGuiStop(root, stop_message, error);
+  if (!created || !error.empty()) std::cerr << "WINDOWS_NATIVE_STOP_DIAGNOSTIC error=" << error
+                                            << " created=" << created << "\\n";
+  Check(created && error.empty(), "Windows owner-private native stop signal created");
   const std::wstring stop_path = root_w + L"\\GUI_STOP";
   error.clear();
   Check(companion::winprivate::ReadPrivateFile(root, "GUI_STOP", 256, error) == stop_message &&

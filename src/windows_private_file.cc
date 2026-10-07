@@ -410,12 +410,15 @@ bool CreatePrivateGuiStop(const std::string& root, const std::string& message, s
   }
   Identity info{};
   std::wstring actual;
-  if (!IdentityOf(file.get(), info) ||
-      (info.attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) ||
-      info.links != 1 || !FinalPath(file.get(), actual) || !SamePath(actual, target) ||
-      !Ntfs(file.get()) || !PrivateAcl(file.get(), false)) {
-    error = "GUI_STOP_CREATED_BUT_UNVERIFIED"; return false;
+  if (!IdentityOf(file.get(), info)) { error = "GUI_STOP_VERIFY_IDENTITY"; return false; }
+  if (info.attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) {
+    error = "GUI_STOP_VERIFY_FILE_TYPE"; return false;
   }
+  if (info.links != 1) { error = "GUI_STOP_VERIFY_LINKS"; return false; }
+  if (!FinalPath(file.get(), actual)) { error = "GUI_STOP_VERIFY_FINAL_PATH"; return false; }
+  if (!SamePath(actual, target)) { error = "GUI_STOP_VERIFY_PATH_MISMATCH"; return false; }
+  if (!Ntfs(file.get())) { error = "GUI_STOP_VERIFY_NTFS"; return false; }
+  if (!PrivateAcl(file.get(), false)) { error = "GUI_STOP_VERIFY_ACL"; return false; }
   DWORD written = 0;
   if (!WriteFile(file.get(), message.data(), static_cast<DWORD>(message.size()),
                  &written, nullptr) || written != message.size() ||
