@@ -219,6 +219,10 @@ bool Integer(const Json& value, uint64_t& out, uint64_t cap = kMaxSafeInteger, b
   if (value.type != Json::Number || value.number == 0 || value.number > cap) return false;
   out = value.number; return true;
 }
+bool NonnegativeInteger(const Json& value, uint64_t& out, uint64_t cap = kMaxSafeInteger) {
+  if (value.type != Json::Number || value.number > cap) return false;
+  out = value.number; return true;
+}
 bool Names(const Json& value, std::vector<std::string>& out, size_t cap, bool extended = false) {
   if (value.type != Json::Array || value.array.size() > cap) return false;
   std::set<std::string> unique;
@@ -562,6 +566,65 @@ Observation ParseObservation(const std::string& json) {
   s.valid = true; s.error.clear(); return s;
 }
 
+Monitor ParseMonitor(const std::string& json) {
+  Monitor m; Json root;
+  if (json.size() > kMaximumMonitorBytes || !Parser(json).Parse(root)) { m.error = "MONITOR_JSON_INVALID"; return m; }
+  m.error = "MONITOR_SCHEMA_INVALID";
+  if (!Keys(root, {"schema","kind","observedAtEpochMs","expiresAtEpochMs","identity","gui","browser","workflows","extensions","operations"}) ||
+      At(root,"schema").type != Json::Number || At(root,"schema").number != 1 ||
+      At(root,"kind").type != Json::String || At(root,"kind").string != "COMMANDER_LIVE_MONITOR" ||
+      !Integer(At(root,"observedAtEpochMs"),m.observed_at,kMaxSafeInteger,false) ||
+      !Integer(At(root,"expiresAtEpochMs"),m.expires_at,kMaxSafeInteger,false) ||
+      m.expires_at < m.observed_at || m.expires_at-m.observed_at > 30000) return m;
+  const auto& identity=At(root,"identity");
+  if (!Keys(identity,{"deviceName","profile","version","configSha256","port","platform"}) ||
+      !DeviceName(At(identity,"deviceName"),m.device_name) ||
+      !AsText(At(identity,"profile"),m.profile,128,false) || !Token(m.profile) ||
+      !AsText(At(identity,"version"),m.version,64,false) || !Token(m.version) ||
+      !AsText(At(identity,"configSha256"),m.config_sha256,64,false) || !Hex(m.config_sha256,64) ||
+      !Integer(At(identity,"port"),m.port,65535,false) ||
+      !AsText(At(identity,"platform"),m.platform,16,false) || !OneOf(m.platform,{"win32","linux"})) return m;
+  const auto& gui=At(root,"gui");
+  if (!Keys(gui,{"enabled","available","uncertain","backend","sessionType","reason","capabilities"}) ||
+      At(gui,"enabled").type!=Json::Boolean || At(gui,"available").type!=Json::Boolean ||
+      At(gui,"uncertain").type!=Json::Boolean ||
+      !AsText(At(gui,"backend"),m.gui_backend,128) || !AsText(At(gui,"sessionType"),m.gui_session_type,32) ||
+      !AsText(At(gui,"reason"),m.gui_reason,160)) return m;
+  m.gui_enabled=At(gui,"enabled").boolean; m.gui_available=At(gui,"available").boolean; m.gui_uncertain=At(gui,"uncertain").boolean;
+  const auto& caps=At(gui,"capabilities");
+  if (!Keys(caps,{"screenshot","mouse","keyboard","focus"}) ||
+      At(caps,"screenshot").type!=Json::Boolean || At(caps,"mouse").type!=Json::Boolean ||
+      At(caps,"keyboard").type!=Json::Boolean || At(caps,"focus").type!=Json::Boolean) return m;
+  m.gui_screenshot=At(caps,"screenshot").boolean; m.gui_mouse=At(caps,"mouse").boolean;
+  m.gui_keyboard=At(caps,"keyboard").boolean; m.gui_focus=At(caps,"focus").boolean;
+  const auto& browser=At(root,"browser");
+  if (!Keys(browser,{"enabled","available","uncertain","backend","reason"}) ||
+      At(browser,"enabled").type!=Json::Boolean || At(browser,"available").type!=Json::Boolean ||
+      At(browser,"uncertain").type!=Json::Boolean ||
+      !AsText(At(browser,"backend"),m.browser_backend,128) || !AsText(At(browser,"reason"),m.browser_reason,160)) return m;
+  m.browser_enabled=At(browser,"enabled").boolean; m.browser_available=At(browser,"available").boolean; m.browser_uncertain=At(browser,"uncertain").boolean;
+  const auto& workflows=At(root,"workflows");
+  if (!Keys(workflows,{"enabled","engineEnabled","runCount"}) ||
+      At(workflows,"enabled").type!=Json::Boolean || At(workflows,"engineEnabled").type!=Json::Boolean ||
+      !NonnegativeInteger(At(workflows,"runCount"),m.workflow_runs,10000)) return m;
+  m.workflows_enabled=At(workflows,"enabled").boolean; m.workflow_engine_enabled=At(workflows,"engineEnabled").boolean;
+  const auto& extensions=At(root,"extensions");
+  if (!Keys(extensions,{"count","items"}) || !NonnegativeInteger(At(extensions,"count"),m.extension_count,32) ||
+      At(extensions,"items").type!=Json::Array || At(extensions,"items").array.size()!=m.extension_count) return m;
+  for (const auto& item:At(extensions,"items").array) {
+    if (!Keys(item,{"id","version"})) return m;
+    std::string id,version;
+    if (!AsText(At(item,"id"),id,64,false) || !Identifier(id) ||
+        !AsText(At(item,"version"),version,64,false) || !Token(version)) return m;
+    m.extensions.push_back(id+"@"+version);
+  }
+  const auto& operations=At(root,"operations");
+  if (!Keys(operations,{"active","lockedKeys"}) ||
+      !NonnegativeInteger(At(operations,"active"),m.active_operations,10000) ||
+      !NonnegativeInteger(At(operations,"lockedKeys"),m.locked_keys,10000)) return m;
+  m.valid=true; m.error.clear(); return m;
+}
+
 NativeBinding ParseNativeBinding(const std::string& json) {
   NativeBinding out; Json root;
   out.error = "NATIVE_BINDING_INVALID";
@@ -571,6 +634,10 @@ NativeBinding ParseNativeBinding(const std::string& json) {
 
 bool IsFresh(const Observation& s, uint64_t now_ms) {
   return s.valid && now_ms >= s.observed_at && now_ms < s.expires_at;
+}
+
+bool IsFresh(const Monitor& m, uint64_t now_ms) {
+  return m.valid && now_ms >= m.observed_at && now_ms < m.expires_at;
 }
 
 bool ImmutableSnapshotName(const std::string& name, uint64_t& observed_at) {
@@ -595,9 +662,33 @@ bool ImmutableSnapshotName(const std::string& name, uint64_t& observed_at) {
   return true;
 }
 
+std::vector<DisplayRow> DescribeMonitor(const Monitor& m, uint64_t now_ms) {
+  std::vector<DisplayRow> rows;
+  if (!m.valid || !IsFresh(m,now_ms)) {
+    const std::string reason=!m.valid?m.error:(now_ms<m.observed_at?"MONITOR_FROM_FUTURE":"MONITOR_EXPIRED");
+    rows.push_back({m.blocked?"Commander Core — 🔴 BLOCKED":"Commander Core — ⚪ DISCONNECTED",reason});
+    return rows;
+  }
+  rows.push_back({"Commander Core — 🟢 CONNECTED","v"+m.version+" / "+m.device_name+" / "+m.profile+" / "+m.platform+":"+std::to_string(m.port)});
+  const std::string gui=!m.gui_enabled?"DISABLED":m.gui_uncertain?"UNCERTAIN":m.gui_available?"READY":"UNAVAILABLE";
+  rows.push_back({"GUI control: "+gui,
+    "backend "+(m.gui_backend.empty()?"UNKNOWN":m.gui_backend)+" / "+(m.gui_session_type.empty()?"UNKNOWN":m.gui_session_type)+
+    " / screenshot="+(m.gui_screenshot?"yes":"no")+" mouse="+(m.gui_mouse?"yes":"no")+" keyboard="+(m.gui_keyboard?"yes":"no")+" focus="+(m.gui_focus?"yes":"no")+
+    (m.gui_reason.empty()?"":" / "+m.gui_reason)});
+  const std::string browser=!m.browser_enabled?"DISABLED":m.browser_uncertain?"UNCERTAIN":m.browser_available?"READY":"UNAVAILABLE";
+  rows.push_back({"Background browser: "+browser,(m.browser_backend.empty()?"UNKNOWN":m.browser_backend)+(m.browser_reason.empty()?"":" / "+m.browser_reason)});
+  rows.push_back({"Workflows: "+std::to_string(m.workflow_runs)+(m.workflow_engine_enabled?" / engine ON":" / engine OFF"),
+    m.workflows_enabled?"Durable workflow monitor enabled.":"Durable workflows disabled."});
+  rows.push_back({"Extensions: "+std::to_string(m.extension_count),Join(m.extensions)});
+  rows.push_back({"Operations: "+std::to_string(m.active_operations)+" active / "+std::to_string(m.locked_keys)+" locks",
+    "Live local Commander counters; no command is executed by this panel."});
+  rows.push_back({"Monitor TTL: "+std::to_string((m.expires_at-now_ms)/1000)+"s","Private local file refreshed by Commander Core; Browser only reads it."});
+  return rows;
+}
+
 std::vector<DisplayRow> Describe(const Observation& s, const NativeBinding& expected, const std::string& active_url, uint64_t now_ms) {
   std::vector<DisplayRow> rows;
-  rows.push_back({"Commander — فقط مشاهده", "Private local exporter observation; not live host/tool attestation. No actions enabled."});
+  rows.push_back({"Chat binding — فقط مشاهده", "Independent chat/project binding evidence; action authority remains fail-closed."});
   if (!s.valid || !IsFresh(s, now_ms)) {
     const std::string reason = !s.valid ? s.error : now_ms < s.observed_at ? "SNAPSHOT_FROM_FUTURE" : "SNAPSHOT_EXPIRED";
     rows.push_back({s.blocked ? "🔴 وضعیت: STOP" : "⚪ وضعیت: UNPROVEN", reason});
@@ -689,6 +780,17 @@ Observation ReadObservation(const std::string& root) {
   out.error = PlatformPrivateFileGuardUnavailable(); out.blocked = true; return out;
 #endif
 }
+Monitor ReadMonitor(const std::string& root) {
+  std::string error;
+  const std::string bytes=ReadPrivateFile(root,"commander-monitor.json",kMaximumMonitorBytes,error);
+  if (!error.empty()) {
+    Monitor out; out.error=error=="FILE_MISSING"?"MONITOR_MISSING":error; out.blocked=out.error!="MONITOR_MISSING"; return out;
+  }
+  Monitor out=ParseMonitor(bytes);
+  if (!out.valid) out.blocked=true;
+  return out;
+}
+
 NativeBinding ReadNativeBinding(const std::string& root) {
   std::string error; const std::string bytes = ReadPrivateFile(root, "commander-binding.json", kMaximumNativeBindingBytes, error);
   if (error.empty()) return ParseNativeBinding(bytes);

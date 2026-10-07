@@ -23,6 +23,10 @@ std::string Replace(std::string source, const std::string& before, const std::st
   source.replace(where, before.size(), after); return source;
 }
 const std::string kBinding = R"({"appId":"app-canonical","accountId":"account-test","profileId":"profile-test","workflowId":"workflow-test","projectRoot":"/workspace/project-test","chatUrl":"https://chatgpt.com/c/chat-test"})";
+std::string MonitorSnapshot() {
+  return R"({"schema":1,"kind":"COMMANDER_LIVE_MONITOR","observedAtEpochMs":1000,"expiresAtEpochMs":11000,"identity":{"deviceName":"linux-host","profile":"default","version":"0.10.19","configSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","port":48832,"platform":"linux"},"gui":{"enabled":true,"available":true,"uncertain":false,"backend":"gnome-mutter-remote-desktop","sessionType":"wayland","reason":null,"capabilities":{"screenshot":true,"mouse":true,"keyboard":true,"focus":true}},"browser":{"enabled":true,"available":true,"uncertain":false,"backend":"chromium-cdp","reason":null},"workflows":{"enabled":true,"engineEnabled":true,"runCount":2},"extensions":{"count":2,"items":[{"id":"project-execution-brain","version":"1.3.1"},{"id":"remote-commander-linux","version":"1.3.4"}]},"operations":{"active":0,"lockedKeys":0}})";
+}
+
 std::string UnknownSnapshot() {
   return R"({"schema":1,"kind":"COMMANDER_COMPANION_OBSERVATION","observedAtEpochMs":1000,"expiresAtEpochMs":2000,"producer":{"id":"remote-commander-companion","version":"1"},"identity":{"appId":null,"profile":"profile-test","deviceName":"renamed-device","version":"0.10.4","commit":null,"configSha256":null,"routeGeneration":null},"backend":{"state":"CONFIRMED","toolNames":["system_status","file_read"],"toolCatalogSha256":"5bb07faadcdc7512789e644acaedcdf9440cf633cc6437f9a774bce5767bf38a"},"currentChat":{"state":"UNKNOWN","conversationUrl":null,"appId":null,"toolNames":[],"skills":[],"plugins":[]},"project":{"state":"UNKNOWN","projectId":"project-test","root":"/workspace/project-test","revision":1,"nextAction":"AWAIT_AUTHORITATIVE_CHAT_OBSERVATION","evidenceSha256":null},"binding":{"appId":null,"accountId":null,"profileId":null,"workflowId":null,"projectRoot":null,"chatUrl":null},"reconciliation":{"state":"UNPROVEN","reasonCodes":["CHAT_OBSERVATION_MISSING"],"actionAllowed":false}})";
 }
@@ -91,6 +95,13 @@ void FileGuards(const std::string& fixture) {
   if (::mkfifo(file.c_str(), 0600) != 0) { std::cerr << "TEST_FIFO_FAILED\n"; std::exit(2); }
   Check(!companion::ReadObservation(root).valid, "FIFO rejected without blocking");
   ::unlink(file.c_str());
+  const std::string monitor_file = root + "/commander-monitor.json";
+  Write(monitor_file, MonitorSnapshot());
+  Check(companion::ReadMonitor(root).valid, "private live monitor accepted");
+  ::chmod(monitor_file.c_str(), 0644);
+  Check(!companion::ReadMonitor(root).valid && companion::ReadMonitor(root).blocked, "world-readable live monitor rejected");
+  ::chmod(monitor_file.c_str(), 0600);
+  ::unlink(monitor_file.c_str());
   const std::string binding_file = root + "/commander-binding.json";
   Write(binding_file, kBinding);
   Check(companion::ReadNativeBinding(root).valid, "independent private six-field binding accepted");
@@ -146,6 +157,17 @@ int main(int argc, char** argv) {
   const std::string unknown = UnknownSnapshot(), bound = BoundSnapshot();
   const auto u = companion::ParseObservation(unknown), b = companion::ParseObservation(bound);
   const auto native = companion::ParseNativeBinding(kBinding);
+  const auto monitor = companion::ParseMonitor(MonitorSnapshot());
+  Check(monitor.valid && monitor.gui_available && monitor.gui_mouse && monitor.extension_count == 2, "live monitor schema accepted");
+  Check(companion::IsFresh(monitor,1000) && !companion::IsFresh(monitor,11000), "live monitor freshness boundary enforced");
+  Check(Has(companion::DescribeMonitor(monitor,1500),"CONNECTED") && Has(companion::DescribeMonitor(monitor,1500),"GUI control: READY"), "live monitor describes connected Core and GUI readiness");
+  const auto uncertain_gui = companion::ParseMonitor(Replace(MonitorSnapshot(), R"("uncertain":false,"backend":"gnome-mutter-remote-desktop")", R"("uncertain":true,"backend":"gnome-mutter-remote-desktop")"));
+  Check(uncertain_gui.valid && Has(companion::DescribeMonitor(uncertain_gui,1500),"GUI control: UNCERTAIN"), "uncertain GUI never renders READY");
+  const auto uncertain_browser = companion::ParseMonitor(Replace(MonitorSnapshot(), R"("browser":{"enabled":true,"available":true,"uncertain":false)", R"("browser":{"enabled":true,"available":true,"uncertain":true)"));
+  Check(uncertain_browser.valid && Has(companion::DescribeMonitor(uncertain_browser,1500),"Background browser: UNCERTAIN"), "uncertain browser never renders READY");
+  Check(!companion::ParseMonitor(Replace(MonitorSnapshot(), R"("active":0)", R"("active":0,"command":"forbidden")")).valid, "monitor operations schema rejects action fields");
+  Check(!companion::ParseMonitor(Replace(MonitorSnapshot(), R"("count":2)", R"("count":3)")).valid, "monitor extension count must match bounded items");
+
   Check(u.valid && u.chat_state == "UNKNOWN" && u.project_id == "project-test", "unknown chat preserves known workflow metadata without tool claims");
   Check(b.valid && native.valid, "complete observed binding accepted");
   Check(companion::CatalogSha256({}) == "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945", "SHA256 empty catalog known vector");
@@ -218,6 +240,8 @@ int main(int argc, char** argv) {
 #if defined(__linux__)
   FileGuards(unknown);
 #elif defined(_WIN32)
+  const auto windows_monitor = companion::ReadMonitor(companion::ProfileRoot());
+  Check(!windows_monitor.valid && windows_monitor.error != "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE", "Windows live monitor uses the native ACL guard");
   const auto windows_observation = companion::ReadObservation(companion::ProfileRoot());
   Check(!windows_observation.valid &&
         windows_observation.error != "WINDOWS_PRIVATE_FILE_GUARD_UNAVAILABLE",
