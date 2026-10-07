@@ -389,6 +389,52 @@ SnapshotRead ReadLatestSnapshot(const std::string& root, size_t cap) {
   return result;
 }
 
+bool CreatePrivateGuiStop(const std::string& root, const std::string& message, std::string& error) {
+  if (message.empty() || message.size() > 256 || message.find('\0') != std::string::npos) {
+    error = "GUI_STOP_MESSAGE_INVALID"; return false;
+  }
+  std::wstring canonical;
+  Identity root_before{};
+  Handle directory = OpenRoot(root, canonical, root_before, error);
+  if (!directory.valid()) return false;
+  const std::wstring target = canonical + L"\\GUI_STOP";
+  Handle file(CreateFileW(target.c_str(),
+      GENERIC_WRITE | FILE_READ_ATTRIBUTES | READ_CONTROL,
+      FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, CREATE_NEW,
+      FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+  if (!file.valid()) {
+    const DWORD code = GetLastError();
+    error = code == ERROR_FILE_EXISTS || code == ERROR_ALREADY_EXISTS
+      ? "GUI_STOP_ALREADY_PRESENT" : "GUI_STOP_CREATE_FAILED";
+    return false;
+  }
+  Identity info{};
+  std::wstring actual;
+  if (!IdentityOf(file.get(), info) ||
+      (info.attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) ||
+      info.links != 1 || !FinalPath(file.get(), actual) || !SamePath(actual, target) ||
+      !Ntfs(file.get()) || !PrivateAcl(file.get(), false)) {
+    error = "GUI_STOP_CREATED_BUT_UNVERIFIED"; return false;
+  }
+  DWORD written = 0;
+  if (!WriteFile(file.get(), message.data(), static_cast<DWORD>(message.size()),
+                 &written, nullptr) || written != message.size() ||
+      !FlushFileBuffers(file.get())) {
+    error = "GUI_STOP_WRITE_UNCERTAIN"; return false;
+  }
+  std::wstring canonical_after;
+  Identity root_after{};
+  std::string root_error;
+  Handle verified_root = OpenRoot(root, canonical_after, root_after, root_error);
+  if (!verified_root.valid() || !SamePath(canonical_after, canonical) ||
+      root_after.volume != root_before.volume ||
+      root_after.index_high != root_before.index_high ||
+      root_after.index_low != root_before.index_low) {
+    error = "GUI_STOP_ROOT_CHANGED_AFTER_CREATE"; return false;
+  }
+  error.clear(); return true;
+}
+
 }  // namespace companion::winprivate
 
 #else
@@ -399,6 +445,9 @@ std::string ReadPrivateFile(const std::string&, const char*, size_t, std::string
 }
 SnapshotRead ReadLatestSnapshot(const std::string&, size_t) {
   SnapshotRead out; out.error = "WINDOWS_FILE_GUARD_UNAVAILABLE"; return out;
+}
+bool CreatePrivateGuiStop(const std::string&, const std::string&, std::string& error) {
+  error = "WINDOWS_FILE_GUARD_UNAVAILABLE"; return false;
 }
 }  // namespace companion::winprivate
 

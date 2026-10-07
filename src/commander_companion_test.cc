@@ -95,6 +95,42 @@ void FileGuards(const std::string& fixture) {
   if (::mkfifo(file.c_str(), 0600) != 0) { std::cerr << "TEST_FIFO_FAILED\n"; std::exit(2); }
   Check(!companion::ReadObservation(root).valid, "FIFO rejected without blocking");
   ::unlink(file.c_str());
+  auto fresh_monitor = companion::ParseMonitor(MonitorSnapshot());
+  Check(fresh_monitor.valid, "native stop fixture valid");
+  const std::string gui_stop = root + "/GUI_STOP";
+  Check(!companion::RequestNativeGuiStop({}, 1500, root).ok &&
+        ::access(gui_stop.c_str(), F_OK) != 0, "invalid monitor never writes GUI_STOP");
+  Check(!companion::RequestNativeGuiStop(fresh_monitor, 11000, root).ok &&
+        ::access(gui_stop.c_str(), F_OK) != 0, "expired monitor never writes GUI_STOP");
+  auto wrong_platform = fresh_monitor;
+  wrong_platform.platform = "win32";
+  Check(!companion::RequestNativeGuiStop(wrong_platform, 1500, root).ok &&
+        ::access(gui_stop.c_str(), F_OK) != 0, "wrong platform identity never writes GUI_STOP");
+  auto uncertain = fresh_monitor;
+  uncertain.gui_uncertain = true;
+  Check(!companion::RequestNativeGuiStop(uncertain, 1500, root).ok &&
+        ::access(gui_stop.c_str(), F_OK) != 0, "uncertain GUI never writes GUI_STOP");
+  const auto stop = companion::RequestNativeGuiStop(fresh_monitor, 1500, root);
+  struct stat stop_info{};
+  Check(stop.ok && ::stat(gui_stop.c_str(), &stop_info) == 0 &&
+        stop_info.st_uid == ::geteuid() &&
+        (stop_info.st_mode & 0077) == 0 && stop_info.st_nlink == 1,
+        "native emergency STOP is create-only owner-private file");
+  Check(!companion::RequestNativeGuiStop(fresh_monitor, 1500, root).ok,
+        "second native STOP is never overwritten or replayed");
+  ::unlink(gui_stop.c_str());
+  const std::string malicious = root + "/target-stop";
+  Write(malicious, "foreign");
+  Check(::symlink("target-stop", gui_stop.c_str()) == 0, "create symlink STOP fixture");
+  Check(!companion::RequestNativeGuiStop(fresh_monitor, 1500, root).ok,
+        "preexisting GUI_STOP symlink cannot be followed or overwritten");
+  ::unlink(gui_stop.c_str()); ::unlink(malicious.c_str());
+  ::chmod(root.c_str(), 0755);
+  Check(!companion::RequestNativeGuiStop(fresh_monitor, 1500, root).ok &&
+        ::access(gui_stop.c_str(), F_OK) != 0,
+        "nonprivate root rejects native stop request");
+  ::chmod(root.c_str(), 0700);
+
   const std::string monitor_file = root + "/commander-monitor.json";
   Write(monitor_file, MonitorSnapshot());
   Check(companion::ReadMonitor(root).valid, "private live monitor accepted");

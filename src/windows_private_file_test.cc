@@ -55,6 +55,22 @@ int wmain(int argc, wchar_t** argv) {
       root, "commander-binding.json", 65536, error);
   Check(error.empty() && binding == "{\"binding\":true}\n", "private_file_read");
 
+  error.clear();
+  const std::string stop_message = "COMMANDER_NATIVE_GUI_EMERGENCY_STOP\n";
+  Check(companion::winprivate::CreatePrivateGuiStop(root, stop_message, error) && error.empty(),
+        "Windows owner-private native stop signal created");
+  const std::wstring stop_path = root_w + L"\\GUI_STOP";
+  error.clear();
+  Check(companion::winprivate::ReadPrivateFile(root, "GUI_STOP", 256, error) == stop_message &&
+        error.empty(), "Windows native stop file verified by private-file reader");
+  error.clear();
+  Check(!companion::winprivate::CreatePrivateGuiStop(root, stop_message, error) &&
+        error == "GUI_STOP_ALREADY_PRESENT", "Windows native stop cannot be overwritten");
+  Check(DeleteFileW(stop_path.c_str()) != FALSE, "native stop cleanup in isolated test fixture");
+  error.clear();
+  Check(!companion::winprivate::CreatePrivateGuiStop(root, std::string(257, 'x'), error) &&
+        error == "GUI_STOP_MESSAGE_INVALID", "Windows oversized action signal rejected");
+
   const std::wstring binding_path = root_w + L"\\commander-binding.json";
   const std::wstring hardlink_path = root_w + L"\\hardlink-alias.json";
   DeleteFileW(hardlink_path.c_str());
