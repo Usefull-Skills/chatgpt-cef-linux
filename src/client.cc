@@ -69,8 +69,10 @@ void AppClient::OnLoadEnd(CefRefPtr<CefBrowser> browser,
                           CefRefPtr<CefFrame> frame,
                           int httpStatusCode) {
   CEF_REQUIRE_UI_THREAD();
-  if (frame && frame->IsMain())
+  if (frame && frame->IsMain()) {
     InjectRTL(frame);
+    if (auto* c=AppController::Get()) c->ApplyWebTheme(frame);
+  }
 }
 
 void AppClient::OnLoadError(CefRefPtr<CefBrowser> browser,
@@ -190,12 +192,22 @@ void AppClient::InjectRTL(CefRefPtr<CefFrame> frame) {
     style.textContent=`
       :root{
         --cgwa-accent:#2563eb;
+        --cgwa-action-text:#ffffff;
         --cgwa-accent-hover:#1d4ed8;
         --cgwa-accent-soft:rgba(37,99,235,.08);
         --cgwa-ring:rgba(37,99,235,.20);
         --cgwa-border:rgba(100,116,139,.18);
         --cgwa-shadow:0 8px 30px rgba(15,23,42,.07);
         --cgwa-font:"Vazirmatn","Noto Sans Arabic","Noto Sans",ui-sans-serif,system-ui,sans-serif;
+      }
+      :root[data-cgwa-native-theme="dark"]{
+        --cgwa-accent:#93c5fd;
+        --cgwa-action-text:#101827;
+        --cgwa-accent-hover:#bfdbfe;
+        --cgwa-accent-soft:rgba(147,197,253,.14);
+        --cgwa-ring:rgba(147,197,253,.36);
+        --cgwa-border:rgba(148,163,184,.36);
+        --cgwa-shadow:0 10px 36px rgba(0,0,0,.25);
       }
       html,body,button,input,textarea,[contenteditable="true"]{font-family:var(--cgwa-font)!important;}
       body{font-feature-settings:"kern" 1,"liga" 1;}
@@ -235,7 +247,7 @@ void AppClient::InjectRTL(CefRefPtr<CefFrame> frame) {
       }
       button{transition:background-color .14s ease,color .14s ease,box-shadow .14s ease,transform .08s ease!important;}
       button:active{transform:translateY(1px);}
-      button[data-testid="send-button"],button[aria-label*="send" i]{background:var(--cgwa-accent)!important;color:white!important;}
+      button[data-testid="send-button"],button[aria-label*="send" i]{background:var(--cgwa-accent)!important;color:var(--cgwa-action-text)!important;}
       button[data-testid="send-button"]:hover,button[aria-label*="send" i]:hover{background:var(--cgwa-accent-hover)!important;}
       ::selection{background:rgba(37,99,235,.18);}
       *{scrollbar-width:thin;scrollbar-color:rgba(100,116,139,.42) transparent;}
@@ -243,6 +255,14 @@ void AppClient::InjectRTL(CefRefPtr<CefFrame> frame) {
     (document.head||document.documentElement).appendChild(style);
   }
 
+  // Follow OS media preference until native theme state is delivered.
+  const media=window.matchMedia('(prefers-color-scheme: dark)');
+  const syncMedia=()=>{
+    if (!document.documentElement.dataset.cgwaNativeTheme)
+      document.documentElement.dataset.cgwaNativeTheme=media.matches?'dark':'light';
+  };
+  media.addEventListener?.('change',syncMedia);
+  syncMedia();
   const MSG=".markdown,[data-markdown-text-style='assistant-message'],[data-user-message-bubble='true']";
   const INPUT="#prompt-textarea,[contenteditable='true'][role='textbox']";
   const RTL_RE=/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/g;
