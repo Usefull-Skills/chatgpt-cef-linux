@@ -1198,7 +1198,11 @@ void AppController::ThemeTick() {
   CEF_REQUIRE_UI_THREAD();
   if (closing_ || !window_ || window_->IsClosed()) return;
   RefreshTheme();
-  CefPostDelayedTask(TID_UI,base::BindOnce(&AppController::ThemeTick,base::Unretained(this)),4000);
+  // A queued theme poll must not retain a raw owner pointer past window
+  // destruction. Use the already-established companion-tick singleton guard.
+  CefPostDelayedTask(TID_UI, base::BindOnce([]() {
+    if (auto* controller = AppController::Get()) controller->ThemeTick();
+  }), 4000);
 }
 
 void AppController::RebuildTabStrip() {

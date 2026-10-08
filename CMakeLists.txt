@@ -22,6 +22,7 @@ if(CGWA_COMPANION_TESTS_ONLY)
     target_link_libraries(theme-policy-test PRIVATE Advapi32)
   endif()
   add_test(NAME theme-policy COMMAND theme-policy-test)
+  set_tests_properties(theme-policy PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
   return()
 endif()
 
