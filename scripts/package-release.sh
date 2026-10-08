@@ -10,12 +10,17 @@ DIST="$ROOT/dist"
 NAME="remote-commander-browser-v${VERSION}-linux-x86_64"
 STAGE="$DIST/$NAME"
 ARCHIVE="$DIST/$NAME.tar.gz"
+ICON_SOURCE="$ROOT/assets/remote-commander-browser-logo.png"
+ICON_SHA256="d724415693a4a4da8c20a065db978467ae979714d9b0559ace7dc33035461195"
 
 [[ -x "$BUILD/chatgpt-cef-v2" ]] || { printf 'Build first.\n' >&2; exit 20; }
 [[ -f "$CEF/LICENSE.txt" && -f "$CEF/CREDITS.html" ]] || { printf 'Pinned CEF license/credits missing.\n' >&2; exit 21; }
+[[ -f "$ICON_SOURCE" && ! -L "$ICON_SOURCE" ]] || { echo 'Official Browser icon unavailable' >&2; exit 22; }
+[[ "$(sha256sum "$ICON_SOURCE" | awk '{print $1}')" == "$ICON_SHA256" ]] || { echo 'Official Browser icon hash mismatch' >&2; exit 23; }
 
 rm -rf "$STAGE"
-mkdir -p "$STAGE/runtime" "$STAGE/third_party"
+mkdir -p "$STAGE/runtime" "$STAGE/third_party" "$STAGE/assets"
+cp "$ICON_SOURCE" "$STAGE/assets/remote-commander-browser-logo.png"
 cp -a "$BUILD/." "$STAGE/runtime/"
 cp "$CEF/LICENSE.txt" "$STAGE/third_party/CEF_LICENSE.txt"
 cp "$CEF/CREDITS.html" "$STAGE/third_party/CEF_CREDITS.html"
@@ -29,7 +34,16 @@ HERE=\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)
 TARGET="\$HOME/.local/share/chatgpt-cef-v2/runtime-v${VERSION}"
 LAUNCHER="\$HOME/.local/bin/chatgpt-cef-v2"
 DESKTOP="\$HOME/.local/share/applications/chatgpt-cef-v2.desktop"
+ICON_SOURCE="\$HERE/assets/remote-commander-browser-logo.png"
+ICON_TARGET="\$HOME/.local/share/icons/hicolor/512x512/apps/remote-commander-browser.png"
+EXPECTED_ICON_SHA="d724415693a4a4da8c20a065db978467ae979714d9b0559ace7dc33035461195"
 [[ ! -e "\$TARGET" ]] || { echo "Target exists: \$TARGET" >&2; exit 20; }
+[[ -f "\$ICON_SOURCE" && ! -L "\$ICON_SOURCE" ]] || { echo "Embedded icon missing" >&2; exit 25; }
+[[ "\$(sha256sum "\$ICON_SOURCE" | awk '{print \$1}')" == "\$EXPECTED_ICON_SHA" ]] || { echo "Embedded icon digest mismatch" >&2; exit 26; }
+if [[ -e "\$ICON_TARGET" || -L "\$ICON_TARGET" ]]; then
+  [[ -f "\$ICON_TARGET" && ! -L "\$ICON_TARGET" ]] || { echo "Unsafe installed icon" >&2; exit 27; }
+  [[ "\$(sha256sum "\$ICON_TARGET" | awk '{print \$1}')" == "\$EXPECTED_ICON_SHA" ]] || { echo "Unknown installed icon, refusing overwrite" >&2; exit 28; }
+fi
 mkdir -p "\$(dirname "\$TARGET")" "\$HOME/.local/bin" "\$HOME/.local/share/applications"
 cp -a "\$HERE/runtime" "\$TARGET"
 sudo chown root:root "\$TARGET/chrome-sandbox"
@@ -54,6 +68,9 @@ exec "\$BIN" "\$@"
 LAUNCH
 } > "\$LAUNCHER"
 chmod 0755 "\$LAUNCHER"
+install -d -m 0755 "\$HOME/.local/share/icons/hicolor/512x512/apps"
+if [[ ! -e "\$ICON_TARGET" ]]; then install -m 0644 "\$ICON_SOURCE" "\$ICON_TARGET"; fi
+[[ "\$(sha256sum "\$ICON_TARGET" | awk '{print \$1}')" == "\$EXPECTED_ICON_SHA" ]] || exit 29
 cat > "\$DESKTOP" <<DESKTOP
 [Desktop Entry]
 Version=1.0
@@ -62,7 +79,7 @@ Name=Remote Commander Browser
 Comment=Remote Commander Browser native CEF shell
 Exec=\$LAUNCHER
 TryExec=\$LAUNCHER
-Icon=applications-internet
+Icon=remote-commander-browser
 Terminal=false
 Categories=Network;Utility;
 StartupWMClass=ChatGPT-CEF-V2
