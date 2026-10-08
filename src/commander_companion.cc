@@ -791,6 +791,77 @@ Monitor ReadMonitor(const std::string& root) {
   return out;
 }
 
+GuiStopOutcome RequestNativeGuiStop(const Monitor& monitor, uint64_t now_ms,
+                                    const std::string& private_root) {
+  GuiStopOutcome result;
+  if (!monitor.valid || !IsFresh(monitor, now_ms)) {
+    result.error = "GUI_STOP_REQUIRES_FRESH_CORE_MONITOR"; return result;
+  }
+  if (!monitor.gui_enabled || !monitor.gui_available || monitor.gui_uncertain) {
+    result.error = "GUI_STOP_REQUIRES_HEALTHY_GUI"; return result;
+  }
+#if defined(__linux__)
+  if (monitor.platform != "linux") {
+    result.error = "GUI_STOP_PLATFORM_IDENTITY_MISMATCH"; return result;
+  }
+#elif defined(_WIN32)
+  if (monitor.platform != "win32") {
+    result.error = "GUI_STOP_PLATFORM_IDENTITY_MISMATCH"; return result;
+  }
+#else
+  result.error = "GUI_STOP_PLATFORM_UNSUPPORTED"; return result;
+#endif
+  // This literal contains neither a tool name nor executable parameters.
+  // It is interpreted exclusively as the fixed, monotonic GUI_STOP safety latch.
+  constexpr char signal[] = "COMMANDER_NATIVE_GUI_EMERGENCY_STOP\n";
+#if defined(__linux__)
+  std::string error;
+  const int directory = OpenPrivateDirectory(private_root, error);
+  if (directory < 0) { result.error = error; return result; }
+  const int file = ::openat(directory, "GUI_STOP",
+      O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+  if (file < 0) {
+    result.error = errno == EEXIST ? "GUI_STOP_ALREADY_PRESENT" : "GUI_STOP_CREATE_FAILED";
+    ::close(directory); return result;
+  }
+  struct stat file_stat{};
+  const bool secure = ::fstat(file, &file_stat) == 0 &&
+    S_ISREG(file_stat.st_mode) && file_stat.st_uid == ::geteuid() &&
+    (file_stat.st_mode & 0077) == 0 && file_stat.st_nlink == 1;
+  if (!secure) {
+    result.error = "GUI_STOP_CREATED_BUT_UNVERIFIED";
+    ::close(file); ::close(directory); return result;
+  }
+  constexpr size_t len = sizeof(signal) - 1;
+  size_t written = 0;
+  while (written < len) {
+    const ssize_t count = ::write(file, signal + written, len - written);
+    if (count < 0 && errno == EINTR) continue;
+    if (count <= 0) break;
+    written += static_cast<size_t>(count);
+  }
+  const bool synced = ::fsync(file) == 0;
+  ::close(file);
+  struct stat after{};
+  const bool same = ::fstatat(directory, "GUI_STOP", &after, AT_SYMLINK_NOFOLLOW) == 0 &&
+    S_ISREG(after.st_mode) && after.st_uid == ::geteuid() &&
+    (after.st_mode & 0077) == 0 && after.st_nlink == 1;
+  ::close(directory);
+  if (written != len || !synced || !same) {
+    result.error = "GUI_STOP_WRITE_UNCERTAIN"; return result;
+  }
+  result.ok = true; result.error.clear(); return result;
+#elif defined(_WIN32)
+  std::string error;
+  if (!winprivate::CreatePrivateGuiStop(private_root, signal, error)) {
+    result.error = error; return result;
+  }
+  result.ok = true; result.error.clear(); return result;
+#else
+  return result;
+#endif
+}
+
 NativeBinding ReadNativeBinding(const std::string& root) {
   std::string error; const std::string bytes = ReadPrivateFile(root, "commander-binding.json", kMaximumNativeBindingBytes, error);
   if (error.empty()) return ParseNativeBinding(bytes);

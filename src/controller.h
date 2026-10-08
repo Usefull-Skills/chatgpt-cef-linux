@@ -98,6 +98,7 @@ class AppController {
   void RefreshCompanion();
   void UpdateCompanionPanel();
   void CompanionTick();
+  void RequestNativeEmergencyStop();
   void RunCompanionSelfTest();
   void SaveSessionState();
   Tab* FindTabById(int tab_id);
@@ -117,6 +118,7 @@ class AppController {
   CefRefPtr<CefPanel> content_;
   CefRefPtr<CefPanel> companion_panel_;
   CefRefPtr<CefLabelButton> companion_refresh_button_;
+  CefRefPtr<CefLabelButton> companion_stop_button_;
   CefRefPtr<CefOverlayController> companion_overlay_;
   std::vector<CefRefPtr<CefLabelButton>> companion_rows_;
   std::vector<CefRefPtr<CefLabelButton>> header_buttons_;
@@ -140,6 +142,8 @@ class AppController {
   int theme_mode_ = 0;  // 0 System, 1 Light, 2 Dark (session-scoped)
   bool theme_dark_ = false;
   bool companion_visible_ = false;
+  uint64_t companion_stop_arm_ms_ = 0;
+  std::string companion_stop_feedback_;
   bool companion_tick_scheduled_ = false;
   bool closing_ = false;
   bool window_created_ = false;

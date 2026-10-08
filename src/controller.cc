@@ -48,6 +48,7 @@ constexpr int kCloseWindowButton = 24;
 constexpr int kCompanionButton = 25;
 constexpr int kThemeButton = 26;
 constexpr int kCompanionRefreshButton = 30;
+constexpr int kCompanionEmergencyStopButton = 31;
 constexpr int kCompanionRowBase = 300;
 constexpr int kCompanionRowCount = 18;
 constexpr int kCompanionWidth = 360;
@@ -238,7 +239,8 @@ class AppController::ButtonDelegateImpl : public CefButtonDelegate {
     if (id == kBrandButton) return CefSize(kBrandWidth, 30);
     if (id == kCompanionButton) return CefSize(104, 30);
     if (id == kThemeButton) return CefSize(124, 32);
-    if (id == kCompanionRefreshButton) return CefSize(kCompanionWidth - 24, 34);
+    if (id == kCompanionRefreshButton || id == kCompanionEmergencyStopButton)
+      return CefSize(kCompanionWidth - 24, 34);
     if (id >= kCompanionRowBase && id < kCompanionRowBase + kCompanionRowCount)
       return CefSize(kCompanionWidth - 24, 34);
     if (id >= kTabCloseBase) return CefSize(24, 28);
@@ -674,6 +676,16 @@ void AppController::BuildCompanionPanel() {
   refresh->SetTooltipText("Reads private local Commander monitor/binding files only; no network, model or command execution.");
   refresh->SetAccessibleName("Refresh read-only local observation");
   companion_panel_->AddChildView(refresh);
+  companion_stop_button_ = CefLabelButton::CreateLabelButton(button_delegate_, "Emergency STOP GUI (double-click)");
+  companion_stop_button_->SetID(kCompanionEmergencyStopButton);
+  companion_stop_button_->SetFontList(kUIBoldFont);
+  companion_stop_button_->SetEnabledTextColors(kActiveText);
+  companion_stop_button_->SetBackgroundColor(kSoftAccentBg);
+  companion_stop_button_->SetTooltipText(
+      "Native safety action only: press twice within eight seconds to STOP GUI automation. "
+      "Never resumes execution; no webpage, shell, cookies, or model access.");
+  companion_stop_button_->SetAccessibleName("Emergency stop native Commander GUI automation; double confirmation");
+  companion_panel_->AddChildView(companion_stop_button_);
   companion_overlay_ = window_->AddOverlayView(companion_panel_, CEF_DOCKING_MODE_CUSTOM, true);
   if (companion_overlay_ && companion_overlay_->IsValid()) companion_overlay_->SetVisible(false);
   UpdateCompanionPanel();
@@ -683,8 +695,37 @@ void AppController::ToggleCompanionPanel() {
   CEF_REQUIRE_UI_THREAD();
   if (closing_ || !companion_overlay_ || !companion_overlay_->IsValid()) return;
   companion_visible_ = !companion_visible_;
+  if (!companion_visible_) companion_stop_arm_ms_ = 0;
   if (companion_visible_) RefreshCompanion();
   LayoutTabOverlays();
+}
+
+void AppController::RequestNativeEmergencyStop() {
+  CEF_REQUIRE_UI_THREAD();
+  if (closing_ || !companion_visible_) return;
+  const uint64_t now = companion::NowEpochMs();
+  const auto monitor = companion::ReadMonitor(companion::ProfileRoot());
+  companion_monitor_ = monitor;
+  if (!companion::IsFresh(monitor, now) || !monitor.gui_enabled ||
+      !monitor.gui_available || monitor.gui_uncertain) {
+    companion_stop_arm_ms_ = 0;
+    companion_stop_feedback_ = "GUI_STOP_REQUIRES_FRESH_HEALTHY_CORE";
+    UpdateCompanionPanel();
+    return;
+  }
+  if (companion_stop_arm_ms_ == 0 || now < companion_stop_arm_ms_ ||
+      now - companion_stop_arm_ms_ > 8000) {
+    companion_stop_arm_ms_ = now;
+    companion_stop_feedback_ = "Native owner confirmation required: click again within 8 seconds.";
+    UpdateCompanionPanel();
+    return;
+  }
+  // The second distinct native button press consumes the arm before any I/O.
+  companion_stop_arm_ms_ = 0;
+  const auto result = companion::RequestNativeGuiStop(
+      monitor, now, companion::ProfileRoot());
+  companion_stop_feedback_ = result.ok ? "GUI_STOP_CREATED" : result.error;
+  RefreshCompanion();
 }
 
 void AppController::RefreshCompanion() {
@@ -719,6 +760,22 @@ void AppController::UpdateCompanionPanel() {
     companion_rows_[i]->SetText(Utf8Ellipsize(rows[i].text, 39, 36));
     companion_rows_[i]->SetTooltipText(rows[i].detail);
     companion_rows_[i]->SetAccessibleName(rows[i].text + " | " + rows[i].detail);
+  }
+  if (companion_stop_button_) {
+    const bool armed = companion_stop_arm_ms_ != 0 && now >= companion_stop_arm_ms_ &&
+      now - companion_stop_arm_ms_ <= 8000;
+    const bool stopped = companion_stop_feedback_ == "GUI_STOP_CREATED" ||
+      companion_monitor_.gui_reason == "LOCAL_GUI_STOP";
+    const bool ready = companion::IsFresh(companion_monitor_, now) &&
+      companion_monitor_.gui_enabled && companion_monitor_.gui_available &&
+      !companion_monitor_.gui_uncertain && !stopped;
+    companion_stop_button_->SetText(stopped ? "GUI STOP ACTIVE" :
+      armed ? "CONFIRM STOP — CLICK AGAIN" :
+      ready ? "Emergency STOP GUI (2 clicks)" : "GUI STOP unavailable — Core not ready");
+    companion_stop_button_->SetEnabled(ready);
+    companion_stop_button_->SetTooltipText(
+      companion_stop_feedback_.empty() ? "Only stops native GUI automation. No automatic resume." :
+      companion_stop_feedback_);
   }
   companion_panel_->Layout();
 }
@@ -1080,6 +1137,7 @@ void AppController::OnButtonPressed(CefRefPtr<CefButton> button) {
     return;
   }
   if (id == kCompanionRefreshButton) { RefreshCompanion(); return; }
+  if (id == kCompanionEmergencyStopButton) { RequestNativeEmergencyStop(); return; }
   if (id == kFullscreenButton) { ToggleFullscreen(); return; }
   if (id == kMaximizeButton) { ToggleMaximize(); return; }
   if (id == kMinimizeButton) { Minimize(); return; }
@@ -1104,6 +1162,10 @@ void AppController::RefreshTheme(bool force) {
   if (companion_refresh_button_) {
     companion_refresh_button_->SetBackgroundColor(kSoftAccentBg);
     companion_refresh_button_->SetEnabledTextColors(kActiveText);
+  }
+  if (companion_stop_button_) {
+    companion_stop_button_->SetBackgroundColor(kSoftAccentBg);
+    companion_stop_button_->SetEnabledTextColors(kActiveText);
   }
   for (auto& b : header_buttons_) {
     if (!b) continue;
@@ -1345,6 +1407,8 @@ void AppController::OnWindowDestroyed() {
   content_ = nullptr;
   companion_overlay_ = nullptr;
   companion_panel_ = nullptr;
+  companion_stop_button_ = nullptr;
+  companion_stop_arm_ms_ = 0;
   companion_rows_.clear();
   companion_visible_ = false;
   companion_tick_scheduled_ = false;
