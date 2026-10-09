@@ -1307,7 +1307,7 @@ void AppController::RefreshTheme(bool force) {
   SetThemePalette(theme_dark_);
   if (header_) header_->SetBackgroundColor(kHeaderBg);
   if (nav_bar_) nav_bar_->SetBackgroundColor(kHeaderBg);
-  for (auto& button : nav_buttons_) if (button) OnButtonStateChanged(button);
+  for (const auto& button : nav_buttons_) if (button) OnButtonStateChanged(button);
   if (tab_strip_) tab_strip_->SetBackgroundColor(kHeaderBg);
   if (content_) content_->SetBackgroundColor(kTabActiveBg);
   if (companion_panel_) companion_panel_->SetBackgroundColor(kHeaderBg);
