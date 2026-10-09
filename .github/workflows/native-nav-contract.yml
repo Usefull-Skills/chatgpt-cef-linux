@@ -1,0 +1,24 @@
+name: Native navigation contract
+on:
+  pull_request:
+  push:
+    branches:
+      - feat/browser-native-navigation-r1
+permissions:
+  contents: read
+jobs:
+  contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate navigation and protected baseline contract
+        run: python scripts/native-navigation-contract-test.py
