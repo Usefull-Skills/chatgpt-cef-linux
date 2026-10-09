@@ -26,6 +26,7 @@
 #include <sstream>
 
 #include "client.h"
+#include "ui_chrome_layout.h"
 #include "include/base/cef_bind.h"
 #include "include/base/cef_callback.h"
 #include "include/base/cef_logging.h"
@@ -45,6 +46,7 @@ constexpr int kMaximizeButton = 22;
 constexpr int kMinimizeButton = 23;
 constexpr int kCloseWindowButton = 24;
 constexpr int kCompanionButton = 25;
+constexpr int kTabSwitcherButton = 26;
 constexpr int kCompanionRefreshButton = 30;
 constexpr int kCompanionRowBase = 300;
 constexpr int kCompanionRowCount = 18;
@@ -52,8 +54,8 @@ constexpr int kCompanionWidth = 360;
 constexpr int kTabButtonBase = 1000;
 constexpr int kTabCloseBase = 2000;
 
-constexpr int kHeaderHeight = 38;
-constexpr int kBrandWidth = 96;
+constexpr int kHeaderHeight = 52;
+constexpr int kBrandWidth = 164;
 
 constexpr int kAccelNewTab = 100;
 constexpr int kAccelCloseTab = 101;
@@ -221,14 +223,15 @@ class AppController::ButtonDelegateImpl : public CefButtonDelegate {
   }
   CefSize GetPreferredSize(CefRefPtr<CefView> view) override {
     const int id = view->GetID();
-    if (id == kBrandButton) return CefSize(kBrandWidth, 30);
-    if (id == kCompanionButton) return CefSize(104, 30);
-    if (id == kCompanionRefreshButton) return CefSize(kCompanionWidth - 24, 34);
+    if (id == kBrandButton) return CefSize(kBrandWidth, 40);
+    if (id == kCompanionButton) return CefSize(108, 40);
+    if (id == kTabSwitcherButton) return CefSize(58, 40);
+    if (id == kCompanionRefreshButton) return CefSize(kCompanionWidth - 24, 40);
     if (id >= kCompanionRowBase && id < kCompanionRowBase + kCompanionRowCount)
-      return CefSize(kCompanionWidth - 24, 34);
-    if (id >= kTabCloseBase) return CefSize(24, 28);
-    if (id >= kTabButtonBase) return CefSize(148, 28);
-    if (id >= kNewTabButton && id <= kCloseWindowButton) return CefSize(32, 30);
+      return CefSize(kCompanionWidth - 24, 30);
+    if (id >= kTabCloseBase) return CefSize(28, 38);
+    if (id >= kTabButtonBase) return CefSize(135, 38);
+    if (id >= kNewTabButton && id <= kCloseWindowButton) return CefSize(36, 40);
     return CefSize(80, 34);
   }
  private:
@@ -270,7 +273,7 @@ class AppController::WindowDelegateImpl : public CefWindowDelegate {
     if (owner_) owner_->OnWindowDestroyed();
   }
   CefRect GetInitialBounds(CefRefPtr<CefWindow> window) override {
-    return CefRect(120, 70, 1180, 620);
+    return CefRect(90, 56, 1240, 760);
   }
   cef_show_state_t GetInitialShowState(CefRefPtr<CefWindow> window) override {
     auto command_line = CefCommandLine::GetGlobalCommandLine();
@@ -303,7 +306,7 @@ AppController::AppController() {
   window_delegate_ = new WindowDelegateImpl(this);
   button_delegate_ = new ButtonDelegateImpl(this);
   browser_view_delegate_ = new BrowserViewDelegateImpl(this);
-  header_delegate_ = new FixedPanelDelegate(1180, kHeaderHeight);
+  header_delegate_ = new FixedPanelDelegate(1240, kHeaderHeight);
 }
 
 AppController::~AppController() {
@@ -337,7 +340,7 @@ void AppController::OnWindowCreated(CefRefPtr<CefWindow> window) {
   window_->SetTitle("Remote Commander Browser");
   SetX11WindowClass(window_);
   BuildWindowUI();
-  window_->CenterWindow(CefSize(1180, 620));
+  window_->CenterWindow(CefSize(1240, 760));
   window_->Show();
   auto command_line = CefCommandLine::GetGlobalCommandLine();
   const bool background_test =
@@ -429,9 +432,15 @@ void AppController::BackgroundSelfTestVerify() {
 
 void AppController::OnWindowBoundsChanged(const CefRect& new_bounds) {
   CEF_REQUIRE_UI_THREAD();
-  (void)new_bounds;
+  int active_index = 0;
+  for (size_t i = 0; i < tabs_.size(); ++i)
+    if (tabs_[i].id == active_tab_id_) active_index = static_cast<int>(i);
+  const auto visible = rc_ui::SelectTabs(
+      new_bounds.width, static_cast<int>(tabs_.size()), active_index);
+  if (visible.capacity != visible_tab_capacity_) RebuildTabStrip();
   LayoutTabOverlays();
   UpdateDraggableRegions();
+  if (companion_visible_) UpdateCompanionPanel();
 }
 
 void AppController::OnWindowFullscreenTransition(bool is_completed) {
@@ -508,15 +517,24 @@ void AppController::BuildHeaderControls() {
     return button;
   };
 
-  auto brand = make_button(kBrandButton, "Remote Commander Browser", kHeaderBg);
+  auto brand = make_button(kBrandButton, "RC  /  Browser", kHeaderBg);
   brand->SetFontList(kUIBoldFont);
   brand->SetEnabledTextColors(kText);
   brand->SetAccessibleName("Remote Commander Browser application");
+  brand->SetTooltipText("Remote Commander Browser — private native window");
   header_buttons_.push_back(brand);
   header_->AddChildView(brand);
 
   header_->AddChildView(tab_strip_);
   header_layout_->SetFlexForView(tab_strip_, 1);
+
+  auto switcher = make_button(kTabSwitcherButton, "1 / 1", kSoftAccentBg);
+  switcher->SetEnabledTextColors(kActiveText);
+  switcher->SetTooltipText("Next tab (Ctrl+Tab); Ctrl+1..8 selects any tab");
+  switcher->SetAccessibleName("Switch tabs");
+  tab_switcher_button_ = switcher;
+  header_buttons_.push_back(switcher);
+  header_->AddChildView(switcher);
 
   auto add = make_button(kNewTabButton, "＋", kButtonBg);
   add->SetEnabledTextColors(kActiveText);
@@ -677,14 +695,35 @@ void AppController::UpdateCompanionPanel() {
   const uint64_t now=companion::NowEpochMs();
   auto rows = companion::DescribeMonitor(companion_monitor_, now);
   const auto binding_rows = companion::Describe(companion_observation_, companion_binding_, active_url, now);
-  rows.insert(rows.end(),binding_rows.begin(),binding_rows.end());
+  rows.insert(rows.end(), binding_rows.begin(), binding_rows.end());
+  const int available_height =
+      window_ ? window_->GetClientAreaBoundsInScreen().height -
+                    (fullscreen_ ? 0 : kHeaderHeight) : 568;
+  const int slots = rc_ui::CompanionRowSlots(
+      available_height, static_cast<int>(rows.size()));
+  const bool overflow = static_cast<int>(rows.size()) > slots;
   for (size_t i = 0; i < companion_rows_.size(); ++i) {
-    const bool visible = i < rows.size();
+    const bool visible = static_cast<int>(i) < slots;
     companion_rows_[i]->SetVisible(visible);
     if (!visible) continue;
-    companion_rows_[i]->SetText(Utf8Ellipsize(rows[i].text, 39, 36));
-    companion_rows_[i]->SetTooltipText(rows[i].detail);
-    companion_rows_[i]->SetAccessibleName(rows[i].text + " | " + rows[i].detail);
+    auto row = companion_rows_[i];
+    if (overflow && static_cast<int>(i) == slots - 1) {
+      const int remaining = static_cast<int>(rows.size()) - slots + 1;
+      const std::string summary = "… +" + std::to_string(remaining) +
+                                  " more • enlarge window";
+      row->SetText(summary);
+      row->SetTooltipText("Additional local monitor fields are hidden at this window height");
+      row->SetAccessibleName(summary);
+      row->SetEnabledTextColors(kMutedText);
+      continue;
+    }
+    row->SetText(Utf8Ellipsize(rows[i].text, 42, 39));
+    row->SetTooltipText(rows[i].detail);
+    row->SetAccessibleName(rows[i].text + " | " + rows[i].detail);
+    const bool caution = rows[i].text.find("UNVERIFIED") != std::string::npos ||
+                         rows[i].text.find("DISCONNECTED") != std::string::npos ||
+                         rows[i].text.find("BLOCKED") != std::string::npos;
+    row->SetEnabledTextColors(caution ? kDangerText : kText);
   }
   companion_panel_->Layout();
 }
@@ -761,7 +800,6 @@ void AppController::NewTab(const std::string& url) {
   // Overlay BrowserViews are hidden by default. Only the active tab is shown.
   added.overlay->SetVisible(false);
   LayoutTabOverlays();
-  RebuildTabStrip();
   SetActiveTabInternal(added.id);
 }
 
@@ -774,6 +812,7 @@ void AppController::SetActiveTabInternal(int tab_id) {
   Tab* target = FindTabById(tab_id);
   if (!target) return;
   active_tab_id_ = tab_id;
+  RebuildTabStrip();
   for (auto& tab : tabs_) {
     const bool active = tab.id == tab_id;
     if (tab.overlay && tab.overlay->IsValid())
@@ -861,7 +900,6 @@ void AppController::CloseTab(int tab_id) {
   if (overlay && overlay->IsValid()) overlay->SetVisible(false);
 
   tabs_.erase(it);
-  RebuildTabStrip();
   if (was_active && !tabs_.empty()) {
     const size_t next = std::min(index, tabs_.size() - 1);
     SetActiveTabInternal(tabs_[next].id);
@@ -1008,8 +1046,8 @@ void AppController::OnButtonStateChanged(CefRefPtr<CefButton> button) {
   if (id == kBrandButton) {
     bg = kHeaderBg;
     fg = kText;
-  } else if (id == kNewTabButton) {
-    bg = hot ? kSoftAccentBg : kButtonBg;
+  } else if (id == kNewTabButton || id == kTabSwitcherButton) {
+    bg = hot ? kTabHoverBg : kSoftAccentBg;
     fg = kActiveText;
   } else if (id == kCloseWindowButton) {
     bg = hot ? kDangerHoverBg : kDangerBg;
@@ -1036,6 +1074,7 @@ void AppController::OnButtonPressed(CefRefPtr<CefButton> button) {
   const int id = button->GetID();
   if (id == kBrandButton) return;
   if (id == kNewTabButton) { NewTab(); return; }
+  if (id == kTabSwitcherButton) { CycleTab(1); return; }
   if (id == kCompanionButton) { ToggleCompanionPanel(); return; }
   if (id == kCompanionRefreshButton) { RefreshCompanion(); return; }
   if (id == kFullscreenButton) { ToggleFullscreen(); return; }
@@ -1050,7 +1089,23 @@ void AppController::RebuildTabStrip() {
   if (!tab_strip_) return;
   tab_strip_->SetBackgroundColor(kHeaderBg);
   tab_strip_->RemoveAllChildViews();
-  for (auto& tab : tabs_) {
+  int active_index = 0;
+  for (size_t i = 0; i < tabs_.size(); ++i)
+    if (tabs_[i].id == active_tab_id_) active_index = static_cast<int>(i);
+  const int logical_width = window_ ? window_->GetClientAreaBoundsInScreen().width : 1240;
+  const auto visible = rc_ui::SelectTabs(logical_width,
+                                         static_cast<int>(tabs_.size()), active_index);
+  visible_tab_capacity_ = visible.capacity;
+  for (size_t i = 0; i < tabs_.size(); ++i) {
+    auto& tab = tabs_[i];
+    const bool in_strip = static_cast<int>(i) >= visible.first &&
+                          static_cast<int>(i) < visible.first + visible.visible;
+    if (!in_strip) {
+      tab.ui_panel = nullptr;
+      tab.title_button = nullptr;
+      tab.close_button = nullptr;
+      continue;
+    }
     auto item = CefPanel::CreatePanel(nullptr);
     CefBoxLayoutSettings settings;
     settings.horizontal = true;
@@ -1065,6 +1120,9 @@ void AppController::RebuildTabStrip() {
     title->SetEnabledTextColors(tab.id == active_tab_id_ ? kActiveText : kMutedText);
     title->SetFontList(tab.id == active_tab_id_ ? kUIBoldFont : kUIFont);
     title->SetInkDropEnabled(true);
+    title->SetTooltipText(tab.title);
+    title->SetAccessibleName("Activate tab " + std::to_string(i + 1) +
+                             ": " + tab.title);
 
     auto close = CefLabelButton::CreateLabelButton(button_delegate_, "×");
     close->SetID(kTabCloseBase + tab.id);
@@ -1072,7 +1130,7 @@ void AppController::RebuildTabStrip() {
     close->SetEnabledTextColors(kMutedText);
     close->SetFontList(kUIFont);
     close->SetTooltipText("Close tab");
-    close->SetAccessibleName("Close tab");
+    close->SetAccessibleName("Close tab " + std::to_string(i + 1));
     close->SetInkDropEnabled(true);
 
     item->AddChildView(title);
@@ -1081,6 +1139,15 @@ void AppController::RebuildTabStrip() {
     tab.title_button = title;
     tab.close_button = close;
     tab_strip_->AddChildView(item);
+  }
+  if (tab_switcher_button_) {
+    const auto label = tabs_.empty() ? "0 / 0" :
+        std::to_string(active_index + 1) + " / " + std::to_string(tabs_.size());
+    tab_switcher_button_->SetText(label);
+    tab_switcher_button_->SetTooltipText(
+        "Tab " + label + " — click for next, Ctrl+1..8 for direct selection");
+    tab_switcher_button_->SetAccessibleName(
+        "Tab " + label + "; activate next tab");
   }
   tab_strip_->Layout();
   if (header_) {
