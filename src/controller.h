@@ -88,6 +88,12 @@ class AppController {
   void ThemeTick();
   void BuildWindowUI();
   void BuildHeaderControls();
+  void BuildNavigationControls();
+  void UpdateNavigationControls();
+  void NavigateBack();
+  void NavigateForward();
+  void ReloadOrStop();
+  void NavigateHome();
   void UpdateDraggableRegions();
   void RebuildTabStrip();
   void UpdateTabButton(Tab& tab);
@@ -114,6 +120,7 @@ class AppController {
 
   CefRefPtr<CefWindow> window_;
   CefRefPtr<CefPanel> header_;
+  CefRefPtr<CefPanel> nav_bar_;
   CefRefPtr<CefPanel> tab_strip_;
   CefRefPtr<CefPanel> content_;
   CefRefPtr<CefPanel> companion_panel_;
@@ -122,17 +129,22 @@ class AppController {
   CefRefPtr<CefOverlayController> companion_overlay_;
   std::vector<CefRefPtr<CefLabelButton>> companion_rows_;
   std::vector<CefRefPtr<CefLabelButton>> header_buttons_;
+  std::vector<CefRefPtr<CefLabelButton>> nav_buttons_;
+  CefRefPtr<CefLabelButton> nav_reload_button_;
+  CefRefPtr<CefLabelButton> nav_site_indicator_;
   companion::Monitor companion_monitor_;
   companion::Observation companion_observation_;
   companion::NativeBinding companion_binding_;
   CefRefPtr<CefBoxLayout> window_layout_;
   CefRefPtr<CefBoxLayout> header_layout_;
+  CefRefPtr<CefBoxLayout> nav_layout_;
   CefRefPtr<CefBoxLayout> tab_layout_;
 
   CefRefPtr<WindowDelegateImpl> window_delegate_;
   CefRefPtr<ButtonDelegateImpl> button_delegate_;
   CefRefPtr<BrowserViewDelegateImpl> browser_view_delegate_;
   CefRefPtr<FixedPanelDelegate> header_delegate_;
+  CefRefPtr<FixedPanelDelegate> nav_delegate_;
 
   CefRefPtr<AppClient> client_;
   std::vector<Tab> tabs_;

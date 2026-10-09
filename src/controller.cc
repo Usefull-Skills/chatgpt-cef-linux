@@ -48,6 +48,11 @@ constexpr int kCloseWindowButton = 24;
 constexpr int kCompanionButton = 25;
 constexpr int kThemeButton = 26;
 constexpr int kCompanionRefreshButton = 30;
+constexpr int kNavBackButton = 40;
+constexpr int kNavForwardButton = 41;
+constexpr int kNavReloadButton = 42;
+constexpr int kNavHomeButton = 43;
+constexpr int kNavSiteButton = 44;
 constexpr int kCompanionEmergencyStopButton = 31;
 constexpr int kCompanionRowBase = 300;
 constexpr int kCompanionRowCount = 18;
@@ -56,6 +61,8 @@ constexpr int kTabButtonBase = 1000;
 constexpr int kTabCloseBase = 2000;
 
 constexpr int kHeaderHeight = 38;
+constexpr int kNavigationHeight = 42;
+constexpr int kChromeHeight = kHeaderHeight + kNavigationHeight;
 constexpr int kBrandWidth = 104;
 
 constexpr int kAccelNewTab = 100;
@@ -64,6 +71,11 @@ constexpr int kAccelNextTab = 102;
 constexpr int kAccelPrevTab = 103;
 constexpr int kAccelFullscreen = 104;
 constexpr int kAccelCompanion = 105;
+constexpr int kAccelBack = 106;
+constexpr int kAccelForward = 107;
+constexpr int kAccelReload = 108;
+constexpr int kAccelReloadF5 = 109;
+constexpr int kAccelHome = 110;
 constexpr int kAccelTab1 = 111;
 
 constexpr int kVKeyTab = 0x09;
@@ -72,6 +84,11 @@ constexpr int kVKeyT = 0x54;
 constexpr int kVKeyW = 0x57;
 constexpr int kVKeyC = 0x43;
 constexpr int kVKeyF11 = 0x7A;
+constexpr int kVKeyLeft = 0x25;
+constexpr int kVKeyRight = 0x27;
+constexpr int kVKeyR = 0x52;
+constexpr int kVKeyF5 = 0x74;
+constexpr int kVKeyHome = 0x24;
 
 // Runtime semantic palette. The native window follows the effective OS theme
 // and always repaints both tab controls and the owner-private companion.
@@ -243,6 +260,8 @@ class AppController::ButtonDelegateImpl : public CefButtonDelegate {
       return CefSize(kCompanionWidth - 24, 34);
     if (id >= kCompanionRowBase && id < kCompanionRowBase + kCompanionRowCount)
       return CefSize(kCompanionWidth - 24, 34);
+    if (id == kNavSiteButton) return CefSize(420, 30);
+    if (id >= kNavBackButton && id <= kNavHomeButton) return CefSize(44, 30);
     if (id >= kTabCloseBase) return CefSize(24, 28);
     if (id >= kTabButtonBase) return CefSize(148, 28);
     if (id >= kNewTabButton && id <= kCloseWindowButton) return CefSize(32, 30);
@@ -324,6 +343,7 @@ AppController::AppController() {
   button_delegate_ = new ButtonDelegateImpl(this);
   browser_view_delegate_ = new BrowserViewDelegateImpl(this);
   header_delegate_ = new FixedPanelDelegate(1180, kHeaderHeight);
+  nav_delegate_ = new FixedPanelDelegate(1180, kNavigationHeight);
 }
 
 AppController::~AppController() {
@@ -468,6 +488,7 @@ void AppController::OnWindowFullscreenTransition(bool is_completed) {
   if (!is_completed || !window_) return;
   fullscreen_ = window_->IsFullscreen();
   if (header_) header_->SetVisible(!fullscreen_);
+  if (nav_bar_) nav_bar_->SetVisible(!fullscreen_);
   window_->Layout();
   LayoutTabOverlays();
   UpdateDraggableRegions();
@@ -503,14 +524,26 @@ void AppController::BuildWindowUI() {
   tabs_layout.default_flex = 0;
   tab_layout_ = tab_strip_->SetToBoxLayout(tabs_layout);
 
+  nav_bar_ = CefPanel::CreatePanel(nav_delegate_);
+  nav_bar_->SetBackgroundColor(kHeaderBg);
+  CefBoxLayoutSettings nav_settings;
+  nav_settings.horizontal = true;
+  nav_settings.between_child_spacing = 6;
+  nav_settings.inside_border_horizontal_spacing = 12;
+  nav_settings.inside_border_vertical_spacing = 5;
+  nav_settings.cross_axis_alignment = CEF_AXIS_ALIGNMENT_CENTER;
+  nav_layout_ = nav_bar_->SetToBoxLayout(nav_settings);
+
   content_ = CefPanel::CreatePanel(nullptr);
   content_->SetToFillLayout();
   content_->SetBackgroundColor(kTabActiveBg);
 
   window_->AddChildView(header_);
+  window_->AddChildView(nav_bar_);
   window_->AddChildView(content_);
   window_layout_->SetFlexForView(content_, 1);
   BuildHeaderControls();
+  BuildNavigationControls();
   BuildCompanionPanel();
 
   UpdateDraggableRegions();
@@ -522,6 +555,11 @@ void AppController::BuildWindowUI() {
   window_->SetAccelerator(kAccelPrevTab, kVKeyTab, true, true, false, true);
   window_->SetAccelerator(kAccelFullscreen, kVKeyF11, false, false, false, true);
   window_->SetAccelerator(kAccelCompanion, kVKeyC, true, true, false, true);
+  window_->SetAccelerator(kAccelBack, kVKeyLeft, false, false, true, true);
+  window_->SetAccelerator(kAccelForward, kVKeyRight, false, false, true, true);
+  window_->SetAccelerator(kAccelReload, kVKeyR, false, true, false, true);
+  window_->SetAccelerator(kAccelReloadF5, kVKeyF5, false, false, false, true);
+  window_->SetAccelerator(kAccelHome, kVKeyHome, false, false, true, true);
   for (int i = 0; i < 8; ++i)
     window_->SetAccelerator(kAccelTab1 + i, kVKey1 + i, false, true, false, true);
 }
@@ -592,6 +630,104 @@ void AppController::BuildHeaderControls() {
   header_->AddChildView(close);
 }
 
+
+void AppController::BuildNavigationControls() {
+  // Native controls live outside the web renderer. Do not inject a URL field
+  // or expose the Commander monitoring/GUI authority to any webpage.
+  auto make = [&](int id, const std::string& symbol, const char* label,
+                  const char* tip) {
+    auto button = CefLabelButton::CreateLabelButton(button_delegate_, symbol);
+    button->SetID(id);
+    button->SetFontList(kUIFont);
+    button->SetBackgroundColor(kButtonBg);
+    button->SetEnabledTextColors(kText);
+    button->SetTooltipText(tip);
+    button->SetAccessibleName(label);
+    button->SetInkDropEnabled(true);
+    nav_bar_->AddChildView(button);
+    nav_buttons_.push_back(button);
+    return button;
+  };
+  make(kNavBackButton, "←", "Back", "Back (Alt+Left)");
+  make(kNavForwardButton, "→", "Forward", "Forward (Alt+Right)");
+  nav_reload_button_ = make(kNavReloadButton, "↻", "Reload", "Reload (Ctrl+R or F5)");
+  make(kNavHomeButton, "⌂", "ChatGPT home", "ChatGPT home (Alt+Home)");
+  nav_site_indicator_ = make(kNavSiteButton, "Site identity unavailable",
+                             "Native read-only site identity", "Only trusted ChatGPT or OpenAI sign-in hosts are internal");
+  nav_site_indicator_->SetFocusable(false);
+  nav_site_indicator_->SetBackgroundColor(kSoftAccentBg);
+  nav_site_indicator_->SetEnabledTextColors(kActiveText);
+  nav_layout_->SetFlexForView(nav_site_indicator_, 1);
+  UpdateNavigationControls();
+}
+
+void AppController::UpdateNavigationControls() {
+  CEF_REQUIRE_UI_THREAD();
+  auto* tab = FindTabById(active_tab_id_);
+  auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
+  const bool ready = !closing_ && browser;
+  for (const auto& button : nav_buttons_) {
+    if (!button) continue;
+    const int id = button->GetID();
+    if (id == kNavBackButton) button->SetEnabled(ready && browser->CanGoBack());
+    else if (id == kNavForwardButton) button->SetEnabled(ready && browser->CanGoForward());
+    else if (id == kNavReloadButton || id == kNavHomeButton) button->SetEnabled(ready);
+  }
+  if (nav_reload_button_) {
+    const bool loading = tab && tab->loading;
+    nav_reload_button_->SetText(loading ? "×" : "↻");
+    nav_reload_button_->SetAccessibleName(loading ? "Stop loading" : "Reload current page");
+    nav_reload_button_->SetTooltipText(loading ? "Stop loading this page" : "Reload (Ctrl+R or F5)");
+  }
+  if (nav_site_indicator_) {
+    std::string label = "Site: unavailable";
+    std::string detail = "No active page. Browser site identity is native and read-only.";
+    if (browser && browser->GetMainFrame()) {
+      const std::string url = browser->GetMainFrame()->GetURL().ToString();
+      if (IsChatGPTURL(url)) {
+        label = "● ChatGPT  /  chatgpt.com";
+        detail = "Verified exact https://chatgpt.com host. External links open in your default browser.";
+      } else if (IsHttpsHost(url, "auth.openai.com")) {
+        label = "● OpenAI sign-in  /  auth.openai.com";
+        detail = "Verified exact https://auth.openai.com host. No sign-in state is modified by the toolbar.";
+      } else {
+        label = "Site: unverified";
+        detail = "This location is outside the explicitly trusted ChatGPT/OpenAI origins.";
+      }
+    }
+    nav_site_indicator_->SetText(label);
+    nav_site_indicator_->SetTooltipText(detail);
+    nav_site_indicator_->SetAccessibleName(label + ". " + detail);
+  }
+}
+
+void AppController::NavigateBack() {
+  CEF_REQUIRE_UI_THREAD();
+  auto* tab = FindTabById(active_tab_id_);
+  auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
+  if (browser && browser->CanGoBack()) browser->GoBack();
+}
+void AppController::NavigateForward() {
+  CEF_REQUIRE_UI_THREAD();
+  auto* tab = FindTabById(active_tab_id_);
+  auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
+  if (browser && browser->CanGoForward()) browser->GoForward();
+}
+void AppController::ReloadOrStop() {
+  CEF_REQUIRE_UI_THREAD();
+  auto* tab = FindTabById(active_tab_id_);
+  auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
+  if (!browser) return;
+  if (tab->loading) browser->StopLoad();
+  else browser->Reload();
+}
+void AppController::NavigateHome() {
+  CEF_REQUIRE_UI_THREAD();
+  auto* tab = FindTabById(active_tab_id_);
+  auto browser = tab && tab->view ? tab->view->GetBrowser() : nullptr;
+  auto frame = browser ? browser->GetMainFrame() : nullptr;
+  if (frame) frame->LoadURL("https://chatgpt.com/");
+}
 
 void AppController::UpdateDraggableRegions() {
   CEF_REQUIRE_UI_THREAD();
@@ -873,6 +1009,7 @@ void AppController::SetActiveTabInternal(int tab_id) {
   }
   if (target->view) target->view->RequestFocus();
   SaveSessionState();
+  UpdateNavigationControls();
   UpdateCompanionPanel();
 }
 
@@ -881,7 +1018,7 @@ void AppController::LayoutTabOverlays() {
   if (!window_ || window_->IsClosed()) return;
   const CefRect client_bounds = window_->GetClientAreaBoundsInScreen();
   const bool header_visible = header_ && header_->IsVisible();
-  const int top = header_visible ? kHeaderHeight : 0;
+  const int top = header_visible ? kChromeHeight : 0;
   const int width = std::max(1, client_bounds.width);
   const int height = std::max(1, client_bounds.height - top);
   const bool show_companion = companion_visible_ && !fullscreen_ && width >= kCompanionWidth + 320;
@@ -983,6 +1120,7 @@ void AppController::ToggleFullscreen() {
   if (!window_) return;
   fullscreen_ = !window_->IsFullscreen();
   if (header_) header_->SetVisible(!fullscreen_);
+  if (nav_bar_) nav_bar_->SetVisible(!fullscreen_);
   window_->SetFullscreen(fullscreen_);
   window_->Layout();
   LayoutTabOverlays();
@@ -1072,6 +1210,10 @@ bool AppController::OnAccelerator(int command_id) {
   if (command_id == kAccelPrevTab) { CycleTab(-1); return true; }
   if (command_id == kAccelFullscreen) { ToggleFullscreen(); return true; }
   if (command_id == kAccelCompanion) { ToggleCompanionPanel(); return true; }
+  if (command_id == kAccelBack) { NavigateBack(); return true; }
+  if (command_id == kAccelForward) { NavigateForward(); return true; }
+  if (command_id == kAccelReload || command_id == kAccelReloadF5) { ReloadOrStop(); return true; }
+  if (command_id == kAccelHome) { NavigateHome(); return true; }
   if (command_id >= kAccelTab1 && command_id < kAccelTab1 + 8) {
     const int index = command_id - kAccelTab1;
     if (index < static_cast<int>(tabs_.size())) SetActiveTabInternal(tabs_[index].id);
@@ -1096,7 +1238,13 @@ void AppController::OnButtonStateChanged(CefRefPtr<CefButton> button) {
   cef_color_t bg = hot ? kButtonHoverBg : kButtonBg;
   cef_color_t fg = hot ? kText : kMutedText;
 
-  if (id == kThemeButton) {
+  if (id == kNavSiteButton) {
+    bg = kSoftAccentBg;
+    fg = kActiveText;
+  } else if (id >= kNavBackButton && id <= kNavHomeButton) {
+    bg = hot ? kSoftAccentBg : kButtonBg;
+    fg = hot ? kActiveText : kText;
+  } else if (id == kThemeButton) {
     bg = hot ? kSoftAccentBg : kButtonBg;
     fg = kActiveText;
   } else if (id == kBrandButton) {
@@ -1136,6 +1284,11 @@ void AppController::OnButtonPressed(CefRefPtr<CefButton> button) {
     RefreshTheme(true);
     return;
   }
+  if (id == kNavBackButton) { NavigateBack(); return; }
+  if (id == kNavForwardButton) { NavigateForward(); return; }
+  if (id == kNavReloadButton) { ReloadOrStop(); return; }
+  if (id == kNavHomeButton) { NavigateHome(); return; }
+  if (id == kNavSiteButton) return;
   if (id == kCompanionRefreshButton) { RefreshCompanion(); return; }
   if (id == kCompanionEmergencyStopButton) { RequestNativeEmergencyStop(); return; }
   if (id == kFullscreenButton) { ToggleFullscreen(); return; }
@@ -1153,6 +1306,8 @@ void AppController::RefreshTheme(bool force) {
   theme_dark_ = next;
   SetThemePalette(theme_dark_);
   if (header_) header_->SetBackgroundColor(kHeaderBg);
+  if (nav_bar_) nav_bar_->SetBackgroundColor(kHeaderBg);
+  for (const auto& button : nav_buttons_) if (button) OnButtonStateChanged(button);
   if (tab_strip_) tab_strip_->SetBackgroundColor(kHeaderBg);
   if (content_) content_->SetBackgroundColor(kTabActiveBg);
   if (companion_panel_) companion_panel_->SetBackgroundColor(kHeaderBg);
@@ -1295,6 +1450,7 @@ void AppController::OnBrowserCreated(CefRefPtr<CefBrowser> browser) {
     }
   }
   if (tab) tab->browser_id = browser->GetIdentifier();
+  if (tab && tab->id == active_tab_id_) UpdateNavigationControls();
 }
 
 bool AppController::OnBrowserDoClose(CefRefPtr<CefBrowser> browser) {
@@ -1357,7 +1513,10 @@ void AppController::OnLoadingStateChange(CefRefPtr<CefBrowser> browser,
   }
   UpdateTabButton(*tab);
   if (!is_loading) SaveSessionState();
-  if (tab->id == active_tab_id_) UpdateCompanionPanel();
+  if (tab->id == active_tab_id_) {
+    UpdateNavigationControls();
+    UpdateCompanionPanel();
+  }
 }
 
 bool AppController::IsChatGPTURL(const std::string& url) const {
@@ -1407,6 +1566,10 @@ void AppController::OnWindowDestroyed() {
   tabs_.clear();
   window_ = nullptr;
   header_ = nullptr;
+  nav_bar_ = nullptr;
+  nav_site_indicator_ = nullptr;
+  nav_reload_button_ = nullptr;
+  nav_buttons_.clear();
   tab_strip_ = nullptr;
   content_ = nullptr;
   companion_overlay_ = nullptr;
@@ -1418,6 +1581,7 @@ void AppController::OnWindowDestroyed() {
   companion_tick_scheduled_ = false;
   window_layout_ = nullptr;
   header_layout_ = nullptr;
+  nav_layout_ = nullptr;
   tab_layout_ = nullptr;
   window_created_ = false;
   CefQuitMessageLoop();
