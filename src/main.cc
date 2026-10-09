@@ -26,23 +26,71 @@ bool IsSubprocess(CefRefPtr<CefCommandLine> command_line) {
   return command_line && command_line->HasSwitch("type");
 }
 
-void ConfigureProfileOverride(CefRefPtr<CefCommandLine> command_line) {
-  if (!command_line || !command_line->HasSwitch("cgwa-profile-dir"))
-    return;
+bool ConfigureProfileOverride(CefRefPtr<CefCommandLine> command_line) {
+  if (!command_line) return false;
+  const bool qa_mode =
+      command_line->HasSwitch("background-test") ||
+      command_line->HasSwitch("self-test") ||
+      command_line->HasSwitch("companion-self-test") ||
+      command_line->HasSwitch("shutdown-self-test");
+  // A test that omits an explicit profile must never fall back to live
+  // ChatGPT profile data. Production without QA flags remains unchanged.
+  if (!command_line->HasSwitch("cgwa-profile-dir")) return !qa_mode;
   const CefString raw = command_line->GetSwitchValue("cgwa-profile-dir");
-  if (raw.empty()) return;
+  // CEF parses switch values as --cgwa-profile-dir=PATH, not a separate argv.
+  if (raw.empty()) return false;
 #if defined(_WIN32)
   std::filesystem::path path(raw.ToWString());
 #else
   std::filesystem::path path = std::filesystem::u8path(raw.ToString());
 #endif
-  if (!path.is_absolute()) path = std::filesystem::absolute(path);
+  if (!path.is_absolute()) return false;
   path = path.lexically_normal();
+  if (qa_mode) {
+    // Reject exact or descendant aliases of the live profile, including
+    // reparse-point/symlink aliases. Invalid filesystem queries fail closed.
 #if defined(_WIN32)
-  _wputenv_s(L"CGWA_PROFILE_ROOT", path.wstring().c_str());
+    const wchar_t* local = _wgetenv(L"LOCALAPPDATA");
+    if (!local || !*local) local = _wgetenv(L"TEMP");
+    const std::filesystem::path default_root =
+        (local && *local ? std::filesystem::path(local)
+                         : std::filesystem::temp_directory_path()) /
+        L"chatgpt-cef-v2";
 #else
-  setenv("CGWA_PROFILE_ROOT", path.c_str(), 1);
+    const char* home = std::getenv("HOME");
+    const std::filesystem::path default_root =
+        std::filesystem::u8path(home ? home : "/tmp") /
+        ".config/chatgpt-cef-v2";
 #endif
+    std::error_code qa_error, prod_error;
+    const auto canonical_qa = std::filesystem::weakly_canonical(path, qa_error);
+    const auto canonical_prod =
+        std::filesystem::weakly_canonical(default_root, prod_error);
+    if (qa_error || prod_error) return false;
+#if defined(_WIN32)
+    const auto qa = canonical_qa.wstring();
+    const auto prod = canonical_prod.wstring();
+    if (_wcsicmp(qa.c_str(), prod.c_str()) == 0 ||
+        (qa.size() > prod.size() && qa[prod.size()] == L'\\' &&
+         _wcsnicmp(qa.c_str(), prod.c_str(), prod.size()) == 0))
+      return false;
+#else
+    const auto qa = canonical_qa.string();
+    const auto prod = canonical_prod.string();
+    if (qa == prod ||
+        (qa.size() > prod.size() && qa[prod.size()] == '/' &&
+         qa.compare(0, prod.size(), prod) == 0))
+      return false;
+#endif
+  }
+#if defined(_WIN32)
+  if (_wputenv_s(L"CGWA_PROFILE_ROOT", path.wstring().c_str()) != 0)
+    return false;
+#else
+  if (setenv("CGWA_PROFILE_ROOT", path.c_str(), 1) != 0)
+    return false;
+#endif
+  return true;
 }
 
 std::filesystem::path ConfigRoot() {
@@ -131,7 +179,7 @@ NO_STACK_PROTECTOR int APIENTRY wWinMain(HINSTANCE hInstance,
   CefMainArgs main_args(hInstance);
   auto command_line = CefCommandLine::CreateCommandLine();
   command_line->InitFromString(::GetCommandLineW());
-  ConfigureProfileOverride(command_line);
+  if (!ConfigureProfileOverride(command_line)) return 30;
 
   CefRefPtr<CefApp> app;
   if (!IsSubprocess(command_line))
@@ -148,7 +196,7 @@ NO_STACK_PROTECTOR int APIENTRY wWinMain(HINSTANCE hInstance,
 NO_STACK_PROTECTOR int main(int argc, char* argv[]) {
   auto command_line = CefCommandLine::CreateCommandLine();
   command_line->InitFromArgv(argc, argv);
-  ConfigureProfileOverride(command_line);
+  if (!ConfigureProfileOverride(command_line)) return 30;
 
   CefMainArgs main_args(argc, argv);
   CefRefPtr<CefApp> app;
