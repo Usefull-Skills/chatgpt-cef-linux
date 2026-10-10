@@ -64,6 +64,41 @@ void FileGuards(const std::string& fixture) {
   const char* made = ::mkdtemp(path);
   if (!made) { std::cerr << "TEST_PROFILE_CREATE_FAILED\n"; std::exit(2); }
   const std::string root(made), file = root + "/commander-companion.json";
+  // R95 regression: an empty 0700 companion child is NOT private if its
+  // non-sticky parent allows group writes. This is a source safety invariant
+  // observed on the owner Linux host; do not relax OpenPrivateDirectory().
+  const std::string mutable_parent = root + "/writable-ancestor";
+  const std::string child = mutable_parent + "/companion";
+  if (::mkdir(mutable_parent.c_str(), 0700) != 0 ||
+      ::mkdir(child.c_str(), 0700) != 0) {
+    std::cerr << "R95_PRIVATE_ROOT_FIXTURE_CREATE_FAILED\n"; std::exit(2);
+  }
+  Check(companion::ReadMonitor(child).error == "MONITOR_MISSING",
+    "empty private child under safe ancestors has missing monitor");
+  Check(companion::ReadObservation(child).error == "SNAPSHOT_MISSING",
+    "empty private child under safe ancestors has missing snapshot");
+  if (::chmod(mutable_parent.c_str(), 0775) != 0) {
+    std::cerr << "R95_PRIVATE_ROOT_PARENT_CHMOD_FAILED\n"; std::exit(2);
+  }
+  const auto blocked_monitor = companion::ReadMonitor(child);
+  const auto blocked_observation = companion::ReadObservation(child);
+  const auto blocked_binding = companion::ReadNativeBinding(child);
+  Check(blocked_monitor.error == "PROFILE_ROOT_UNSAFE" && blocked_monitor.blocked,
+    "group-writable ancestor rejects private child monitor");
+  Check(blocked_observation.error == "PROFILE_ROOT_UNSAFE" && blocked_observation.blocked,
+    "group-writable ancestor rejects private child snapshot");
+  Check(blocked_binding.error == "PROFILE_ROOT_UNSAFE",
+    "group-writable ancestor rejects native binding");
+  if (::chmod(mutable_parent.c_str(), 0700) != 0) {
+    std::cerr << "R95_PRIVATE_ROOT_RESTORE_FAILED\n"; std::exit(2);
+  }
+  Check(companion::ReadMonitor(child).error == "MONITOR_MISSING",
+    "restored safe ancestor permits bounded missing monitor");
+  Check(companion::ReadObservation(child).error == "SNAPSHOT_MISSING",
+    "restored safe ancestor permits bounded missing snapshot");
+  if (::rmdir(child.c_str()) != 0 || ::rmdir(mutable_parent.c_str()) != 0) {
+    std::cerr << "R95_PRIVATE_ROOT_FIXTURE_CLEANUP_FAILED\n"; std::exit(2);
+  }
   Check(companion::ReadObservation(root).error == "SNAPSHOT_MISSING", "missing snapshot fails closed");
   Write(file, fixture);
   Check(companion::ReadObservation(root).valid, "private regular same-owner file accepted");
