@@ -32,6 +32,7 @@ class AppController {
   void NewTab(const std::string& url = "https://chatgpt.com/");
   void ActivateTab(int tab_id);
   void CloseTab(int tab_id);
+  void QueueTabClose(int tab_id);
   void CloseActiveTab();
   void ToggleFullscreen();
   void ToggleTheme();
@@ -105,6 +106,7 @@ class AppController {
   void BackgroundSelfTestClose();
   void BackgroundSelfTestVerify();
   void BackgroundLastTabSelfTestVerify();
+  void BackgroundUiTabCloseSelfTestVerify();
   void BeginShutdown();
   void FinalizeShutdown();
   std::string ShortTitle(const std::string& title) const;

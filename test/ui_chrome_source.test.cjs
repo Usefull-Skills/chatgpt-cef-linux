@@ -58,3 +58,15 @@ test('dedicated close-window button remains functional',()=>{
  assert.match(controller,/bool AppController::CanWindowClose\(\)/);
  assert.match(controller,/void AppController::BeginShutdown\(\)/);
 });
+
+test('R114 tab-X defers callback-time native view destruction',()=>{
+ const pressed=controller.split('void AppController::OnButtonPressed(CefRefPtr<CefButton> button) {')[1]?.split('void AppController::RebuildTabStrip()')[0];
+ const queued=controller.split('void AppController::QueueTabClose(int tab_id) {')[1]?.split('void AppController::CloseActiveTab()')[0];
+ assert.ok(pressed&&queued);
+ assert.match(pressed,/id >= kTabCloseBase\) \{ QueueTabClose\(id - kTabCloseBase\); return; \}/);
+ assert.doesNotMatch(pressed,/CloseTab\(id - kTabCloseBase\)/);
+ assert.match(queued,/CefPostTask\(/);
+ assert.match(queued,/base::BindOnce\(&AppController::CloseTab/);
+ assert.match(controller,/CGWA_UI_TAB_CLOSE_SELFTEST/);
+ assert.match(header,/BackgroundUiTabCloseSelfTestVerify/);
+});
