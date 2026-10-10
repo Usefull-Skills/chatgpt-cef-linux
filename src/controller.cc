@@ -532,6 +532,37 @@ void AppController::BackgroundLastTabSelfTestVerify() {
   } else {
     LOG(WARNING) << "CGWA_THEME_SELFTEST FAIL tab_precondition";
   }
+  // The original last-tab self-test invoked CloseTab() directly and missed
+  // the native tab-X button event route that the owner observed failing.
+  if (!pass) {
+    LOG(WARNING) << "CGWA_UI_TAB_CLOSE_SELFTEST FAIL tab_precondition";
+    return;
+  }
+  Tab* current = FindTabById(active_tab_id_);
+  if (!current || !current->close_button) {
+    LOG(WARNING) << "CGWA_UI_TAB_CLOSE_SELFTEST FAIL no_close_button";
+    return;
+  }
+  self_test_last_closed_tab_id_ = current->id;
+  OnButtonPressed(current->close_button);
+  CefPostDelayedTask(
+      TID_UI,
+      base::BindOnce(&AppController::BackgroundUiTabCloseSelfTestVerify,
+                     base::Unretained(this)),
+      650);
+}
+
+void AppController::BackgroundUiTabCloseSelfTestVerify() {
+  CEF_REQUIRE_UI_THREAD();
+  const bool pass = !closing_ && window_ && !window_->IsClosed() &&
+                    tabs_.size() == 1 &&
+                    active_tab_id_ != self_test_last_closed_tab_id_ &&
+                    !FindTabById(self_test_last_closed_tab_id_) &&
+                    FindTabById(active_tab_id_) != nullptr;
+  LOG(WARNING) << "CGWA_UI_TAB_CLOSE_SELFTEST " << (pass ? "PASS" : "FAIL")
+               << " remaining=" << tabs_.size()
+               << " replacement_id=" << active_tab_id_
+               << " closing=" << closing_;
 }
 
 void AppController::OnWindowBoundsChanged(const CefRect& new_bounds) {
@@ -1036,7 +1067,19 @@ void AppController::CloseTab(int tab_id) {
   if (overlay && overlay->IsValid()) overlay->Destroy();
 }
 
-void AppController::CloseActiveTab() { CloseTab(active_tab_id_); }
+void AppController::QueueTabClose(int tab_id) {
+  CEF_REQUIRE_UI_THREAD();
+  // A button's own OnButtonPressed event must return before the tab-X view
+  // that generated it can be destroyed. Capture only the immutable tab id.
+  if (closing_ || !FindTabById(tab_id)) return;
+  LOG(WARNING) << "CGWA_TAB_CLOSE_UI_QUEUED tab=" << tab_id;
+  CefPostTask(
+      TID_UI,
+      base::BindOnce(&AppController::CloseTab,
+                     base::Unretained(this), tab_id));
+}
+
+void AppController::CloseActiveTab() { QueueTabClose(active_tab_id_); }
 
 void AppController::CycleTab(int delta) {
   if (tabs_.empty()) return;
@@ -1256,7 +1299,7 @@ void AppController::OnButtonPressed(CefRefPtr<CefButton> button) {
   if (id == kMaximizeButton) { ToggleMaximize(); return; }
   if (id == kMinimizeButton) { Minimize(); return; }
   if (id == kCloseWindowButton) { RequestCloseWindow(); return; }
-  if (id >= kTabCloseBase) { CloseTab(id - kTabCloseBase); return; }
+  if (id >= kTabCloseBase) { QueueTabClose(id - kTabCloseBase); return; }
   if (id >= kTabButtonBase) { ActivateTab(id - kTabButtonBase); return; }
 }
 
