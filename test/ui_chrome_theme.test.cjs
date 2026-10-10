@@ -38,6 +38,15 @@ test('R98 theme toggle uses native CEF request context not website injection',()
  assert.match(controller,/CGWA_THEME_SELFTEST/);
  assert.doesNotMatch(controller,/DeleteAllCookies|clearBrowsingData|--disable-web-security|--no-sandbox/);
 });
+test('R99 first launch without ui-theme.state does not fail symlink privacy guard',()=>{
+ assert.match(controller,/std::filesystem::symlink_status/);
+ assert.match(controller,/ec == std::errc::no_such_file_or_directory/);
+ assert.match(controller,/safe_file\(path, false\)/);
+ assert.match(controller,/safe_file\(tmp, true\)/);
+ assert.match(controller,/std::filesystem::is_symlink\(status\)/);
+ assert.match(controller,/std::filesystem::is_regular_file\(status\)/);
+ assert.doesNotMatch(controller,/is_symlink\(std::filesystem::u8path\(path\), error\)/);
+});
 test('R98 theme control reserves logical space at narrow and wide widths',()=>{
  assert.match(layout,/chrome_reserved = width < 900 \? 384 : 620/);
  assert.match(controller,/SetAccessibleName\("Switch browser theme"\)/);

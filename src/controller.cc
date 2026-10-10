@@ -24,6 +24,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <system_error>
 
 #include "client.h"
 #include "ui_chrome_layout.h"
@@ -145,12 +146,26 @@ bool SaveThemePreference(rc_ui::ThemeMode mode) {
   const auto parent = std::filesystem::u8path(path).parent_path();
   std::filesystem::create_directories(parent, error);
   if (error) return false;
-  if (std::filesystem::is_symlink(std::filesystem::u8path(path), error) ||
-      error) return false;
-  if (std::filesystem::is_symlink(std::filesystem::u8path(tmp), error) ||
-      error) return false;
-  if (std::filesystem::exists(std::filesystem::u8path(tmp), error) ||
-      error) return false;
+  // symlink_status() returns ENOENT for an initially absent theme file.
+  // Absence is legitimate on first launch; other I/O failures stay closed.
+  const auto safe_file = [](const std::string& candidate, bool must_be_absent) {
+    std::error_code ec;
+    const auto status = std::filesystem::symlink_status(
+        std::filesystem::u8path(candidate), ec);
+    if (ec == std::errc::no_such_file_or_directory) return true;
+    if (ec) return false;
+    if (!std::filesystem::exists(status)) return true;
+    if (std::filesystem::is_symlink(status)) return false;
+    return !must_be_absent && std::filesystem::is_regular_file(status);
+  };
+  if (!safe_file(path, false)) {
+    LOG(ERROR) << "CGWA_THEME_PREF_DENIED existing_destination";
+    return false;
+  }
+  if (!safe_file(tmp, true)) {
+    LOG(ERROR) << "CGWA_THEME_PREF_DENIED temporary_destination";
+    return false;
+  }
   std::ofstream out(std::filesystem::u8path(tmp), std::ios::trunc);
   if (!out) return false;
   out << (mode == rc_ui::ThemeMode::Dark ? "dark\n" : "light\n");
