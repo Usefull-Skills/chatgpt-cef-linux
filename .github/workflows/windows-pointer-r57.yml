@@ -1,0 +1,39 @@
+name: Windows Browser transactional pointer R57
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/install-windows.ps1'
+      - 'test/windows-rollback-ci-r57.ps1'
+      - 'test/windows-pointer-static-r57.test.mjs'
+      - '.github/workflows/windows-pointer-r57.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-rollback:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify installer parser
+        shell: pwsh
+        run: |
+          $tokens=$null; $errors=$null
+          [Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path scripts/install-windows.ps1),[ref]$tokens,[ref]$errors)|Out-Null
+          if($errors.Count -ne 0){throw 'INSTALLER_PARSE_FAILED'}
+      - name: Synthetic Windows junction swap / rollback fault injection
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -File test/windows-rollback-ci-r57.ps1
+      - name: Run safety source regressions
+        run: node --test test/windows-pointer-static-r57.test.mjs
+  portable-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify portable source policy
+        run: node --test test/windows-pointer-static-r57.test.mjs
