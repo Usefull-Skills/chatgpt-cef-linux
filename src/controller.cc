@@ -24,14 +24,17 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <system_error>
 
 #include "client.h"
 #include "ui_chrome_layout.h"
+#include "ui_chrome_palette.h"
 #include "include/base/cef_bind.h"
 #include "include/base/cef_callback.h"
 #include "include/base/cef_logging.h"
 #include "include/cef_app.h"
 #include "include/cef_command_line.h"
+#include "include/cef_request_context.h"
 #include "include/cef_task.h"
 #include "include/views/cef_fill_layout.h"
 #include "include/internal/cef_types_wrappers.h"
@@ -47,6 +50,7 @@ constexpr int kMinimizeButton = 23;
 constexpr int kCloseWindowButton = 24;
 constexpr int kCompanionButton = 25;
 constexpr int kTabSwitcherButton = 26;
+constexpr int kThemeButton = 27;
 constexpr int kCompanionRefreshButton = 30;
 constexpr int kCompanionRowBase = 300;
 constexpr int kCompanionRowCount = 18;
@@ -72,22 +76,10 @@ constexpr int kVKeyW = 0x57;
 constexpr int kVKeyC = 0x43;
 constexpr int kVKeyF11 = 0x7A;
 
-// R07 modern visual system: light neutral surfaces + a single blue accent.
-constexpr cef_color_t kHeaderBg = CefColorSetARGB(255, 248, 250, 252);      // #F8FAFC
-constexpr cef_color_t kTabBg = CefColorSetARGB(255, 248, 250, 252);         // ghost
-constexpr cef_color_t kTabHoverBg = CefColorSetARGB(255, 238, 242, 247);    // #EEF2F7
-constexpr cef_color_t kTabActiveBg = CefColorSetARGB(255, 255, 255, 255);   // #FFFFFF
-constexpr cef_color_t kButtonBg = CefColorSetARGB(255, 248, 250, 252);      // ghost
-constexpr cef_color_t kButtonHoverBg = CefColorSetARGB(255, 238, 242, 247); // #EEF2F7
-constexpr cef_color_t kSoftAccentBg = CefColorSetARGB(255, 239, 246, 255);  // #EFF6FF
-constexpr cef_color_t kPrimaryBg = CefColorSetARGB(255, 37, 99, 235);       // #2563EB
-constexpr cef_color_t kPrimaryHoverBg = CefColorSetARGB(255, 29, 78, 216); // #1D4ED8
-constexpr cef_color_t kText = CefColorSetARGB(255, 15, 23, 42);             // #0F172A
-constexpr cef_color_t kMutedText = CefColorSetARGB(255, 100, 116, 139);     // #64748B
-constexpr cef_color_t kActiveText = CefColorSetARGB(255, 29, 78, 216);      // #1D4ED8
-constexpr cef_color_t kDangerBg = CefColorSetARGB(255, 248, 250, 252);      // ghost normal
-constexpr cef_color_t kDangerHoverBg = CefColorSetARGB(255, 254, 226, 226); // #FEE2E2
-constexpr cef_color_t kDangerText = CefColorSetARGB(255, 220, 38, 38);      // #DC2626
+// R98 user-selected private browser theme, updated only on the CEF UI thread.
+rc_ui::ThemeMode g_ui_theme = rc_ui::ThemeMode::Light;
+const rc_ui::ThemePalette& UiPalette() { return rc_ui::Palette(g_ui_theme); }
+
 constexpr char kUIFont[] = "Vazirmatn, Noto Sans Arabic, DejaVu Sans, 12px";
 constexpr char kUIBoldFont[] = "Vazirmatn, Noto Sans Arabic, DejaVu Sans, Bold 12px";
 
@@ -133,6 +125,66 @@ bool CommitStateFile(const std::string& temp, const std::string& path) {
   if (::chmod(temp.c_str(), 0600) != 0) return false;
   return ::rename(temp.c_str(), path.c_str()) == 0;
 #endif
+}
+
+std::string ThemeStatePath() {
+  return PathUtf8(std::filesystem::u8path(StatePath()).parent_path() /
+                  "ui-theme.state");
+}
+
+rc_ui::ThemeMode ReadThemePreference() {
+  std::ifstream input(std::filesystem::u8path(ThemeStatePath()));
+  std::string value;
+  if (std::getline(input, value) && value == "dark")
+    return rc_ui::ThemeMode::Dark;
+  return rc_ui::ThemeMode::Light;
+}
+
+bool SaveThemePreference(rc_ui::ThemeMode mode) {
+  const std::string path = ThemeStatePath(), tmp = path + ".tmp";
+  std::error_code error;
+  const auto parent = std::filesystem::u8path(path).parent_path();
+  std::filesystem::create_directories(parent, error);
+  if (error) return false;
+  // symlink_status() returns ENOENT for an initially absent theme file.
+  // Absence is legitimate on first launch; other I/O failures stay closed.
+  const auto safe_file = [](const std::string& candidate, bool must_be_absent) {
+    std::error_code ec;
+    const auto status = std::filesystem::symlink_status(
+        std::filesystem::u8path(candidate), ec);
+    if (ec == std::errc::no_such_file_or_directory) return true;
+    if (ec) return false;
+    if (!std::filesystem::exists(status)) return true;
+    if (std::filesystem::is_symlink(status)) return false;
+    return !must_be_absent && std::filesystem::is_regular_file(status);
+  };
+  if (!safe_file(path, false)) {
+    LOG(ERROR) << "CGWA_THEME_PREF_DENIED existing_destination";
+    return false;
+  }
+  if (!safe_file(tmp, true)) {
+    LOG(ERROR) << "CGWA_THEME_PREF_DENIED temporary_destination";
+    return false;
+  }
+  std::ofstream out(std::filesystem::u8path(tmp), std::ios::trunc);
+  if (!out) return false;
+  out << (mode == rc_ui::ThemeMode::Dark ? "dark\n" : "light\n");
+  out.flush();
+  const bool good = out.good();
+  out.close();
+  if (!good || !CommitStateFile(tmp, path)) {
+    RemoveStateFile(tmp);
+    return false;
+  }
+  return true;
+}
+
+void ApplyChromeColorScheme() {
+  if (auto context = CefRequestContext::GetGlobalContext()) {
+    context->SetChromeColorScheme(
+        g_ui_theme == rc_ui::ThemeMode::Dark
+            ? CEF_COLOR_VARIANT_DARK : CEF_COLOR_VARIANT_LIGHT, 0);
+  }
 }
 
 bool StartsWith(const std::string& s, const std::string& p) {
@@ -198,7 +250,7 @@ class AppController::FixedPanelDelegate : public CefPanelDelegate {
     return CefSize(width_, height_);
   }
   void OnThemeChanged(CefRefPtr<CefView> view) override {
-    if (view) view->SetBackgroundColor(kHeaderBg);
+    if (view) view->SetBackgroundColor(UiPalette().header);
   }
  private:
   int width_;
@@ -225,6 +277,7 @@ class AppController::ButtonDelegateImpl : public CefButtonDelegate {
     const int id = view->GetID();
     if (id == kBrandButton) return CefSize(kBrandWidth, 40);
     if (id == kCompanionButton) return CefSize(108, 40);
+    if (id == kThemeButton) return CefSize(80, 40);
     if (id == kTabSwitcherButton) return CefSize(58, 40);
     if (id == kCompanionRefreshButton) return CefSize(kCompanionWidth - 24, 40);
     if (id >= kCompanionRowBase && id < kCompanionRowBase + kCompanionRowCount)
@@ -307,6 +360,7 @@ AppController::AppController() {
   button_delegate_ = new ButtonDelegateImpl(this);
   browser_view_delegate_ = new BrowserViewDelegateImpl(this);
   header_delegate_ = new FixedPanelDelegate(1240, kHeaderHeight);
+  g_ui_theme = ReadThemePreference();
 }
 
 AppController::~AppController() {
@@ -338,6 +392,7 @@ void AppController::OnWindowCreated(CefRefPtr<CefWindow> window) {
   window_ = window;
   window_created_ = true;
   window_->SetTitle("Remote Commander Browser");
+  ApplyChromeColorScheme();
   SetX11WindowClass(window_);
   BuildWindowUI();
   window_->CenterWindow(CefSize(1240, 760));
@@ -456,6 +511,27 @@ void AppController::BackgroundLastTabSelfTestVerify() {
                << " remaining=" << tabs_.size()
                << " closing=" << closing_
                << " replaced_id=" << self_test_last_replacement_tab_id_;
+  if (pass) {
+    const auto initial = g_ui_theme;
+    ToggleTheme();
+    const bool toggled = g_ui_theme != initial &&
+                         ReadThemePreference() == g_ui_theme;
+    ToggleTheme();
+    const bool restored = g_ui_theme == initial &&
+                          ReadThemePreference() == initial;
+    const auto context = CefRequestContext::GetGlobalContext();
+    const bool chrome = context &&
+        context->GetChromeColorSchemeMode() ==
+            (initial == rc_ui::ThemeMode::Dark
+                ? CEF_COLOR_VARIANT_DARK : CEF_COLOR_VARIANT_LIGHT);
+    LOG(WARNING) << "CGWA_THEME_SELFTEST "
+                 << (toggled && restored && chrome ? "PASS" : "FAIL")
+                 << " toggle=" << toggled
+                 << " restored=" << restored
+                 << " chromium=" << chrome;
+  } else {
+    LOG(WARNING) << "CGWA_THEME_SELFTEST FAIL tab_precondition";
+  }
 }
 
 void AppController::OnWindowBoundsChanged(const CefRect& new_bounds) {
@@ -492,7 +568,7 @@ void AppController::BuildWindowUI() {
   window_layout_ = window_->SetToBoxLayout(vertical);
 
   header_ = CefPanel::CreatePanel(header_delegate_);
-  header_->SetBackgroundColor(kHeaderBg);
+  header_->SetBackgroundColor(UiPalette().header);
   CefBoxLayoutSettings horizontal;
   horizontal.horizontal = true;
   horizontal.between_child_spacing = 2;
@@ -503,7 +579,7 @@ void AppController::BuildWindowUI() {
   header_layout_ = header_->SetToBoxLayout(horizontal);
 
   tab_strip_ = CefPanel::CreatePanel(nullptr);
-  tab_strip_->SetBackgroundColor(kHeaderBg);
+  tab_strip_->SetBackgroundColor(UiPalette().header);
   CefBoxLayoutSettings tabs_layout;
   tabs_layout.horizontal = true;
   tabs_layout.between_child_spacing = 2;
@@ -513,7 +589,7 @@ void AppController::BuildWindowUI() {
 
   content_ = CefPanel::CreatePanel(nullptr);
   content_->SetToFillLayout();
-  content_->SetBackgroundColor(CefColorSetARGB(255, 0, 0, 0));
+  content_->SetBackgroundColor(UiPalette().content);
 
   window_->AddChildView(header_);
   window_->AddChildView(content_);
@@ -539,15 +615,15 @@ void AppController::BuildHeaderControls() {
     auto button = CefLabelButton::CreateLabelButton(button_delegate_, text);
     button->SetID(id);
     button->SetBackgroundColor(bg);
-    button->SetEnabledTextColors(kText);
+    button->SetEnabledTextColors(UiPalette().text);
     button->SetFontList(kUIFont);
     button->SetInkDropEnabled(true);
     return button;
   };
 
-  auto brand = make_button(kBrandButton, "RC  /  Browser", kHeaderBg);
+  auto brand = make_button(kBrandButton, "RC  /  Browser", UiPalette().header);
   brand->SetFontList(kUIBoldFont);
-  brand->SetEnabledTextColors(kText);
+  brand->SetEnabledTextColors(UiPalette().text);
   brand->SetAccessibleName("Remote Commander Browser application");
   brand->SetTooltipText("Remote Commander Browser — private native window");
   header_buttons_.push_back(brand);
@@ -556,47 +632,56 @@ void AppController::BuildHeaderControls() {
   header_->AddChildView(tab_strip_);
   header_layout_->SetFlexForView(tab_strip_, 1);
 
-  auto switcher = make_button(kTabSwitcherButton, "1 / 1", kSoftAccentBg);
-  switcher->SetEnabledTextColors(kActiveText);
+  auto switcher = make_button(kTabSwitcherButton, "1 / 1", UiPalette().softAccent);
+  switcher->SetEnabledTextColors(UiPalette().activeText);
   switcher->SetTooltipText("Next tab (Ctrl+Tab); Ctrl+1..8 selects any tab");
   switcher->SetAccessibleName("Switch tabs");
   tab_switcher_button_ = switcher;
   header_buttons_.push_back(switcher);
   header_->AddChildView(switcher);
 
-  auto add = make_button(kNewTabButton, "＋", kButtonBg);
-  add->SetEnabledTextColors(kActiveText);
+  auto add = make_button(kNewTabButton, "＋", UiPalette().button);
+  add->SetEnabledTextColors(UiPalette().activeText);
   add->SetTooltipText("New tab (Ctrl+T)");
   add->SetAccessibleName("New tab");
   header_buttons_.push_back(add);
   header_->AddChildView(add);
 
-  auto companion = make_button(kCompanionButton, "Commander", kButtonBg);
+  auto companion = make_button(kCompanionButton, "Commander", UiPalette().button);
   companion->SetTooltipText("پنل مشاهده Commander (Ctrl+Shift+C)");
   companion->SetAccessibleName("Toggle read-only Commander companion");
   header_buttons_.push_back(companion);
   header_->AddChildView(companion);
 
-  auto full = make_button(kFullscreenButton, "⛶", kButtonBg);
+  auto theme = make_button(
+      kThemeButton, g_ui_theme == rc_ui::ThemeMode::Dark ? "Dark" : "Light",
+      UiPalette().softAccent);
+  theme->SetTooltipText("Switch Light/Dark appearance (private browser setting)");
+  theme->SetAccessibleName("Switch browser theme");
+  theme_button_ = theme;
+  header_buttons_.push_back(theme);
+  header_->AddChildView(theme);
+
+  auto full = make_button(kFullscreenButton, "⛶", UiPalette().button);
   full->SetTooltipText("Fullscreen (F11)");
   full->SetAccessibleName("Toggle fullscreen");
   header_buttons_.push_back(full);
   header_->AddChildView(full);
 
-  auto max = make_button(kMaximizeButton, "▢", kButtonBg);
+  auto max = make_button(kMaximizeButton, "▢", UiPalette().button);
   max->SetTooltipText("Maximize / Restore");
   max->SetAccessibleName("Maximize or restore");
   header_buttons_.push_back(max);
   header_->AddChildView(max);
 
-  auto min = make_button(kMinimizeButton, "−", kButtonBg);
+  auto min = make_button(kMinimizeButton, "−", UiPalette().button);
   min->SetTooltipText("Minimize");
   min->SetAccessibleName("Minimize");
   header_buttons_.push_back(min);
   header_->AddChildView(min);
 
-  auto close = make_button(kCloseWindowButton, "×", kDangerBg);
-  close->SetEnabledTextColors(kMutedText);
+  auto close = make_button(kCloseWindowButton, "×", UiPalette().danger);
+  close->SetEnabledTextColors(UiPalette().muted);
   close->SetTooltipText("Close");
   close->SetAccessibleName("Close application");
   header_buttons_.push_back(close);
@@ -658,7 +743,7 @@ void AppController::UpdateDraggableRegions() {
 
 void AppController::BuildCompanionPanel() {
   companion_panel_ = CefPanel::CreatePanel(nullptr);
-  companion_panel_->SetBackgroundColor(kHeaderBg);
+  companion_panel_->SetBackgroundColor(UiPalette().header);
   CefBoxLayoutSettings settings;
   settings.horizontal = false;
   settings.between_child_spacing = 2;
@@ -670,8 +755,8 @@ void AppController::BuildCompanionPanel() {
     auto row = CefLabelButton::CreateLabelButton(button_delegate_, "");
     row->SetID(kCompanionRowBase + i);
     row->SetFontList(i == 0 ? kUIBoldFont : kUIFont);
-    row->SetEnabledTextColors(kText);
-    row->SetBackgroundColor(kHeaderBg);
+    row->SetEnabledTextColors(UiPalette().text);
+    row->SetBackgroundColor(UiPalette().header);
     row->SetFocusable(false);
     // This is a native display row, not an action. Full bounded details are
     // accessible via its tooltip/name, without injecting anything into a page.
@@ -681,8 +766,8 @@ void AppController::BuildCompanionPanel() {
   auto refresh = CefLabelButton::CreateLabelButton(button_delegate_, "تازه‌سازی مانیتور محلی");
   refresh->SetID(kCompanionRefreshButton);
   refresh->SetFontList(kUIFont);
-  refresh->SetEnabledTextColors(kActiveText);
-  refresh->SetBackgroundColor(kSoftAccentBg);
+  refresh->SetEnabledTextColors(UiPalette().activeText);
+  refresh->SetBackgroundColor(UiPalette().softAccent);
   refresh->SetTooltipText("Reads private local Commander monitor/binding files only; no network, model or command execution.");
   refresh->SetAccessibleName("Refresh read-only local observation");
   companion_panel_->AddChildView(refresh);
@@ -742,7 +827,7 @@ void AppController::UpdateCompanionPanel() {
       row->SetText(summary);
       row->SetTooltipText("Additional local monitor fields are hidden at this window height");
       row->SetAccessibleName(summary);
-      row->SetEnabledTextColors(kMutedText);
+      row->SetEnabledTextColors(UiPalette().muted);
       continue;
     }
     row->SetText(Utf8Ellipsize(rows[i].text, 42, 39));
@@ -751,7 +836,7 @@ void AppController::UpdateCompanionPanel() {
     const bool caution = rows[i].text.find("UNVERIFIED") != std::string::npos ||
                          rows[i].text.find("DISCONNECTED") != std::string::npos ||
                          rows[i].text.find("BLOCKED") != std::string::npos;
-    row->SetEnabledTextColors(caution ? kDangerText : kText);
+    row->SetEnabledTextColors(caution ? UiPalette().dangerText : UiPalette().text);
   }
   companion_panel_->Layout();
 }
@@ -963,6 +1048,54 @@ void AppController::CycleTab(int delta) {
   SetActiveTabInternal(tabs_[index].id);
 }
 
+void AppController::ToggleTheme() {
+  CEF_REQUIRE_UI_THREAD();
+  if (closing_ || !window_ || window_->IsClosed()) return;
+  const auto next = g_ui_theme == rc_ui::ThemeMode::Light
+                        ? rc_ui::ThemeMode::Dark : rc_ui::ThemeMode::Light;
+  if (!SaveThemePreference(next)) {
+    LOG(ERROR) << "CGWA_THEME_SAVE_FAILED";
+    return;  // Do not advertise an unpersisted visual choice.
+  }
+  g_ui_theme = next;
+  ApplyChromeColorScheme();
+  ApplyNativeTheme();
+  LOG(WARNING) << "CGWA_THEME_APPLIED "
+               << (g_ui_theme == rc_ui::ThemeMode::Dark ? "DARK" : "LIGHT");
+}
+
+void AppController::ApplyNativeTheme() {
+  CEF_REQUIRE_UI_THREAD();
+  if (!window_ || window_->IsClosed()) return;
+  window_->SetBackgroundColor(UiPalette().header);
+  if (header_) header_->SetBackgroundColor(UiPalette().header);
+  if (tab_strip_) tab_strip_->SetBackgroundColor(UiPalette().header);
+  if (content_) content_->SetBackgroundColor(UiPalette().content);
+  if (companion_panel_) companion_panel_->SetBackgroundColor(UiPalette().header);
+  if (theme_button_) {
+    const bool dark = g_ui_theme == rc_ui::ThemeMode::Dark;
+    theme_button_->SetText(dark ? "Dark" : "Light");
+    theme_button_->SetTooltipText(
+        dark ? "Dark appearance. Click to switch to Light."
+             : "Light appearance. Click to switch to Dark.");
+    theme_button_->SetAccessibleName(
+        dark ? "Switch browser theme (Dark selected)"
+             : "Switch browser theme (Light selected)");
+  }
+  for (const auto& button : header_buttons_)
+    if (button) OnButtonStateChanged(button);
+  for (const auto& row : companion_rows_) {
+    if (row) {
+      row->SetBackgroundColor(UiPalette().header);
+      row->SetEnabledTextColors(UiPalette().text);
+    }
+  }
+  RebuildTabStrip();
+  UpdateCompanionPanel();
+  window_->Layout();
+  UpdateDraggableRegions();
+}
+
 void AppController::ToggleFullscreen() {
   CEF_REQUIRE_UI_THREAD();
   if (!window_) return;
@@ -1070,36 +1203,39 @@ void AppController::OnButtonStateChanged(CefRefPtr<CefButton> button) {
   if (!button) return;
   const int id = button->GetID();
   if (id >= kCompanionRowBase && id < kCompanionRowBase + kCompanionRowCount) {
-    button->SetBackgroundColor(kHeaderBg);
-    if (auto label = button->AsLabelButton()) label->SetEnabledTextColors(kText);
+    button->SetBackgroundColor(UiPalette().header);
+    if (auto label = button->AsLabelButton()) label->SetEnabledTextColors(UiPalette().text);
     return;
   }
   const auto state = button->GetState();
   const bool hot = state == CEF_BUTTON_STATE_HOVERED ||
                    state == CEF_BUTTON_STATE_PRESSED;
 
-  cef_color_t bg = hot ? kButtonHoverBg : kButtonBg;
-  cef_color_t fg = hot ? kText : kMutedText;
+  cef_color_t bg = hot ? UiPalette().buttonHover : UiPalette().button;
+  cef_color_t fg = hot ? UiPalette().text : UiPalette().muted;
 
   if (id == kBrandButton) {
-    bg = kHeaderBg;
-    fg = kText;
+    bg = UiPalette().header;
+    fg = UiPalette().text;
   } else if (id == kNewTabButton || id == kTabSwitcherButton) {
-    bg = hot ? kTabHoverBg : kSoftAccentBg;
-    fg = kActiveText;
+    bg = hot ? UiPalette().tabHover : UiPalette().softAccent;
+    fg = UiPalette().activeText;
+  } else if (id == kThemeButton) {
+    bg = hot ? UiPalette().tabHover : UiPalette().softAccent;
+    fg = UiPalette().activeText;
   } else if (id == kCloseWindowButton) {
-    bg = hot ? kDangerHoverBg : kDangerBg;
-    fg = hot ? kDangerText : kMutedText;
+    bg = hot ? UiPalette().dangerHover : UiPalette().danger;
+    fg = hot ? UiPalette().dangerText : UiPalette().muted;
   } else if (id >= kTabCloseBase) {
     const int tab_id = id - kTabCloseBase;
     const bool active = tab_id == active_tab_id_;
-    bg = hot ? kDangerHoverBg : (active ? kTabActiveBg : kTabBg);
-    fg = hot ? kDangerText : kMutedText;
+    bg = hot ? UiPalette().dangerHover : (active ? UiPalette().tabActive : UiPalette().tab);
+    fg = hot ? UiPalette().dangerText : UiPalette().muted;
   } else if (id >= kTabButtonBase) {
     const int tab_id = id - kTabButtonBase;
     const bool active = tab_id == active_tab_id_;
-    bg = hot ? kTabHoverBg : (active ? kTabActiveBg : kTabBg);
-    fg = active ? kActiveText : (hot ? kText : kMutedText);
+    bg = hot ? UiPalette().tabHover : (active ? UiPalette().tabActive : UiPalette().tab);
+    fg = active ? UiPalette().activeText : (hot ? UiPalette().text : UiPalette().muted);
   }
 
   button->SetBackgroundColor(bg);
@@ -1114,6 +1250,7 @@ void AppController::OnButtonPressed(CefRefPtr<CefButton> button) {
   if (id == kNewTabButton) { NewTab(); return; }
   if (id == kTabSwitcherButton) { CycleTab(1); return; }
   if (id == kCompanionButton) { ToggleCompanionPanel(); return; }
+  if (id == kThemeButton) { ToggleTheme(); return; }
   if (id == kCompanionRefreshButton) { RefreshCompanion(); return; }
   if (id == kFullscreenButton) { ToggleFullscreen(); return; }
   if (id == kMaximizeButton) { ToggleMaximize(); return; }
@@ -1125,7 +1262,7 @@ void AppController::OnButtonPressed(CefRefPtr<CefButton> button) {
 
 void AppController::RebuildTabStrip() {
   if (!tab_strip_) return;
-  tab_strip_->SetBackgroundColor(kHeaderBg);
+  tab_strip_->SetBackgroundColor(UiPalette().header);
   tab_strip_->RemoveAllChildViews();
   int active_index = 0;
   for (size_t i = 0; i < tabs_.size(); ++i)
@@ -1150,12 +1287,12 @@ void AppController::RebuildTabStrip() {
     settings.between_child_spacing = 1;
     settings.cross_axis_alignment = CEF_AXIS_ALIGNMENT_CENTER;
     item->SetToBoxLayout(settings);
-    item->SetBackgroundColor(kHeaderBg);
+    item->SetBackgroundColor(UiPalette().header);
 
     auto title = CefLabelButton::CreateLabelButton(button_delegate_, ShortTitle(tab.title));
     title->SetID(kTabButtonBase + tab.id);
-    title->SetBackgroundColor(tab.id == active_tab_id_ ? kTabActiveBg : kTabBg);
-    title->SetEnabledTextColors(tab.id == active_tab_id_ ? kActiveText : kMutedText);
+    title->SetBackgroundColor(tab.id == active_tab_id_ ? UiPalette().tabActive : UiPalette().tab);
+    title->SetEnabledTextColors(tab.id == active_tab_id_ ? UiPalette().activeText : UiPalette().muted);
     title->SetFontList(tab.id == active_tab_id_ ? kUIBoldFont : kUIFont);
     title->SetInkDropEnabled(true);
     title->SetTooltipText(tab.title);
@@ -1164,8 +1301,8 @@ void AppController::RebuildTabStrip() {
 
     auto close = CefLabelButton::CreateLabelButton(button_delegate_, "×");
     close->SetID(kTabCloseBase + tab.id);
-    close->SetBackgroundColor(tab.id == active_tab_id_ ? kTabActiveBg : kTabBg);
-    close->SetEnabledTextColors(kMutedText);
+    close->SetBackgroundColor(tab.id == active_tab_id_ ? UiPalette().tabActive : UiPalette().tab);
+    close->SetEnabledTextColors(UiPalette().muted);
     close->SetFontList(kUIFont);
     close->SetTooltipText("Close tab");
     close->SetAccessibleName("Close tab " + std::to_string(i + 1));
@@ -1200,12 +1337,12 @@ void AppController::UpdateTabButton(Tab& tab) {
   if (tab.loading) text = "• " + text;
   tab.title_button->SetText(text);
   const bool active = tab.id == active_tab_id_;
-  tab.title_button->SetBackgroundColor(active ? kTabActiveBg : kTabBg);
-  tab.title_button->SetEnabledTextColors(active ? kActiveText : kMutedText);
+  tab.title_button->SetBackgroundColor(active ? UiPalette().tabActive : UiPalette().tab);
+  tab.title_button->SetEnabledTextColors(active ? UiPalette().activeText : UiPalette().muted);
   tab.title_button->SetFontList(active ? kUIBoldFont : kUIFont);
   if (tab.close_button) {
-    tab.close_button->SetBackgroundColor(active ? kTabActiveBg : kTabBg);
-    tab.close_button->SetEnabledTextColors(kMutedText);
+    tab.close_button->SetBackgroundColor(active ? UiPalette().tabActive : UiPalette().tab);
+    tab.close_button->SetEnabledTextColors(UiPalette().muted);
   }
 }
 
@@ -1355,6 +1492,7 @@ void AppController::OnWindowDestroyed() {
   header_ = nullptr;
   tab_strip_ = nullptr;
   content_ = nullptr;
+  theme_button_ = nullptr;
   companion_overlay_ = nullptr;
   companion_panel_ = nullptr;
   companion_rows_.clear();
