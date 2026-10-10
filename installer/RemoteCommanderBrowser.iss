@@ -1,5 +1,5 @@
 #ifndef MyVersion
-  #define MyVersion "0.8.1-dev"
+  #define MyVersion "0.8.2-rc.1"
 #endif
 #ifndef BrowserPayload
   #define BrowserPayload "..\build-windows\bin"

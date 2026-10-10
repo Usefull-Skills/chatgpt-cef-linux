@@ -18,14 +18,14 @@ jobs:
       - name: Verify preview version
         shell: pwsh
         run: |
-          if((Get-Content VERSION -Raw).Trim() -ne '0.8.1'){ throw 'VERSION mismatch' }
+          if((Get-Content VERSION -Raw).Trim() -ne '0.8.2-rc.1'){ throw 'VERSION mismatch' }
 
       - name: Companion contract tests (CEF-free)
         shell: pwsh
         run: |
           cmake.exe -S . -B build-contract -G 'Visual Studio 17 2022' -A x64 -DCGWA_COMPANION_TESTS_ONLY=ON
           if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
-          cmake.exe --build build-contract --config Release --target companion-contract-test -- /m
+          cmake.exe --build build-contract --config Release --target companion-contract-test theme-policy-test -- /m
           if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
           ctest.exe --test-dir build-contract -C Release --output-on-failure
           if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
@@ -152,7 +152,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $setup=(Resolve-Path 'dist/installer/Remote-Commander-Browser-Setup-v0.8.1.exe').Path
+          $setup=(Resolve-Path 'dist/installer/Remote-Commander-Browser-Setup-v0.8.2-rc.1.exe').Path
           $root=Join-Path $env:RUNNER_TEMP 'rc-browser-setup-qa'
           $install=Join-Path $root 'browser'
           $companion=Join-Path $root 'companion'
@@ -176,17 +176,17 @@ jobs:
           if(-not(Test-Path $exe -PathType Leaf)){ throw 'BROWSER_SETUP_EXE_MISSING' }
           if(-not(Test-Path $record -PathType Leaf)){ throw 'BROWSER_SETUP_RECORD_MISSING' }
           $json=Get-Content $record -Raw|ConvertFrom-Json
-          if($json.version -ne '0.8.1' -or $json.publicIntegration -ne $false){ throw 'BROWSER_SETUP_RECORD_INVALID' }
+          if($json.version -ne '0.8.2-rc.1' -or $json.publicIntegration -ne $false){ throw 'BROWSER_SETUP_RECORD_INVALID' }
           $acl=Get-Acl $companion
           if(-not$acl.AreAccessRulesProtected){ throw 'BROWSER_SETUP_COMPANION_ACL_INVALID' }
           Write-Output 'BROWSER_SETUP_ISOLATED_PASS'
 
       - uses: actions/upload-artifact@v4
         with:
-          name: remote-commander-browser-v0.8.1-windows-x86_64
+          name: remote-commander-browser-v0.8.2-rc.1-windows-x86_64
           path: |
-            dist/remote-commander-browser-v0.8.1-windows-x86_64.zip
-            dist/SHA256SUMS-windows-v0.8.1.txt
+            dist/remote-commander-browser-v0.8.2-rc.1-windows-x86_64.zip
+            dist/SHA256SUMS-windows-v0.8.2-rc.1.txt
           if-no-files-found: error
 
 
@@ -241,7 +241,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: remote-commander-browser-v0.8.1-linux-x86_64
+          name: remote-commander-browser-v0.8.2-rc.1-linux-x86_64
           path: |
             build/bin/
             build/BINARY_SHA256-linux.txt

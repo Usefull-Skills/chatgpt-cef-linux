@@ -17,7 +17,7 @@ SPEC = importlib.util.spec_from_file_location(
 assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
-VERSION = "0.8.1"
+VERSION = "0.8.2-rc.1"
 
 class ReleaseIntegrityTests(unittest.TestCase):
     def setUp(self):
@@ -46,6 +46,17 @@ class ReleaseIntegrityTests(unittest.TestCase):
     def rejected(self):
         with self.assertRaises(MODULE.IntegrityError):
             MODULE.verify(VERSION, self.release)
+
+    def test_stable_icon_identity_and_installer_policy(self):
+        asset = ROOT / "assets" / "remote-commander-browser-logo.png"
+        self.assertEqual(hashlib.sha256(asset.read_bytes()).hexdigest(),
+            "d724415693a4a4da8c20a065db978467ae979714d9b0559ace7dc33035461195")
+        for relative in ("scripts/install-local.sh", "scripts/package-release.sh"):
+            content = (ROOT / relative).read_text(encoding="utf8")
+            self.assertIn("Icon=remote-commander-browser", content)
+            self.assertIn("d724415693a4a4da8c20a065db978467ae979714d9b0559ace7dc33035461195", content)
+            self.assertIn("Existing icon", content if relative.endswith("install-local.sh")
+                          else content.replace("Unknown installed icon", "Existing icon"))
 
     def test_exact_payloads_and_producer_hashes(self):
         self.assertEqual(len(MODULE.verify(VERSION, self.release)), 3)
@@ -132,9 +143,11 @@ class ReleaseIntegrityTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "posix", "native Linux package execution")
     def test_actual_packager_checksum_is_portable(self):
         fixture = self.root / "project with spaces"
-        for directory in ("scripts", "build/bin", ".deps/cef"):
+        for directory in ("scripts", "build/bin", ".deps/cef", "assets"):
             (fixture / directory).mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / "scripts" / "package-release.sh", fixture / "scripts" / "package-release.sh")
+        shutil.copyfile(ROOT / "assets" / "remote-commander-browser-logo.png",
+                        fixture / "assets" / "remote-commander-browser-logo.png")
         (fixture / "VERSION").write_text(VERSION + "\n", encoding="ascii")
         (fixture / "build/bin/chatgpt-cef-v2").write_text("#!/bin/sh\nexit 0\n", encoding="ascii")
         (fixture / "build/bin/chatgpt-cef-v2").chmod(0o755)
@@ -163,11 +176,13 @@ class ReleaseIntegrityTests(unittest.TestCase):
         fixture = self.root / "generated installer project"
         home = self.root / "home with spaces"
         tools = self.root / "guarded fixture tools"
-        for directory in ("scripts", "build/bin", ".deps/cef"):
+        for directory in ("scripts", "build/bin", ".deps/cef", "assets"):
             (fixture / directory).mkdir(parents=True, exist_ok=True)
         home.mkdir()
         tools.mkdir()
         shutil.copyfile(ROOT / "scripts/package-release.sh", fixture / "scripts/package-release.sh")
+        shutil.copyfile(ROOT / "assets" / "remote-commander-browser-logo.png",
+                        fixture / "assets" / "remote-commander-browser-logo.png")
         (fixture / "VERSION").write_text(VERSION + "\n", encoding="ascii")
         payload = "#!/bin/sh\nprintf '<%s>\\n' \"$@\"\n"
         for name in ("chatgpt-cef-v2", "chrome-sandbox"):
@@ -215,6 +230,11 @@ class ReleaseIntegrityTests(unittest.TestCase):
         )
         self.assertEqual(install.returncode, 0, install.stderr)
         launcher = home / ".local/bin/chatgpt-cef-v2"
+        icon = home / ".local/share/icons/hicolor/512x512/apps/remote-commander-browser.png"
+        self.assertEqual(hashlib.sha256(icon.read_bytes()).hexdigest(),
+                         "d724415693a4a4da8c20a065db978467ae979714d9b0559ace7dc33035461195")
+        desktop = (home / ".local/share/applications/chatgpt-cef-v2.desktop").read_text(encoding="utf8")
+        self.assertIn("Icon=remote-commander-browser", desktop)
         self.assertIn('exec "$BIN" "$@"', launcher.read_text(encoding="utf-8"))
         syntax = subprocess.run(
             ["bash", "-n", str(launcher)], env=env, capture_output=True, text=True, timeout=10,
