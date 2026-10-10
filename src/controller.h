@@ -116,6 +116,8 @@ class AppController {
   CefRefPtr<CefOverlayController> companion_overlay_;
   std::vector<CefRefPtr<CefLabelButton>> companion_rows_;
   std::vector<CefRefPtr<CefLabelButton>> header_buttons_;
+  CefRefPtr<CefLabelButton> tab_switcher_button_;
+  int visible_tab_capacity_ = -1;
   companion::Monitor companion_monitor_;
   companion::Observation companion_observation_;
   companion::NativeBinding companion_binding_;
