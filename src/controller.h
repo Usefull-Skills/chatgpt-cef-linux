@@ -34,6 +34,8 @@ class AppController {
   void CloseTab(int tab_id);
   void CloseActiveTab();
   void ToggleFullscreen();
+  void ToggleTheme();
+  void ApplyNativeTheme();
   void ToggleMaximize();
   void Minimize();
   void RequestCloseWindow();
@@ -118,6 +120,7 @@ class AppController {
   std::vector<CefRefPtr<CefLabelButton>> companion_rows_;
   std::vector<CefRefPtr<CefLabelButton>> header_buttons_;
   CefRefPtr<CefLabelButton> tab_switcher_button_;
+  CefRefPtr<CefLabelButton> theme_button_;
   int visible_tab_capacity_ = -1;
   companion::Monitor companion_monitor_;
   companion::Observation companion_observation_;
