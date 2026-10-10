@@ -126,10 +126,10 @@ jobs:
           if($p.ExitCode -ne 0){ throw "native exit=$($p.ExitCode)" }
           if(!(Test-Path $log)){ throw 'native log missing' }
           $text=Get-Content -LiteralPath $log -Raw
-          foreach($marker in @('CGWA_COMPANION_SELFTEST PASS','CGWA_SELFTEST PASS','CGWA_SHUTDOWN FINALIZE','CGWA_SHUTDOWN WINDOW_DESTROYED')){
+          foreach($marker in @('CGWA_COMPANION_SELFTEST PASS','CGWA_SELFTEST PASS','CGWA_LAST_TAB_SELFTEST PASS','CGWA_SHUTDOWN FINALIZE','CGWA_SHUTDOWN WINDOW_DESTROYED')){
             if(-not $text.Contains($marker)){ throw "missing marker: $marker" }
           }
-          if($text -match 'CGWA_COMPANION_SELFTEST FAIL|CGWA_SELFTEST FAIL|FATAL|stack smashing'){ throw 'native failure marker present' }
+          if($text -match 'CGWA_COMPANION_SELFTEST FAIL|CGWA_SELFTEST FAIL|CGWA_LAST_TAB_SELFTEST FAIL|FATAL|stack smashing'){ throw 'native failure marker present' }
           Write-Output 'WINDOWS_NATIVE_LIFECYCLE_PASS'
 
       - name: Package Windows preview
@@ -234,9 +234,10 @@ jobs:
           cp "$profile/chrome_debug.log" .qa/native-linux-chrome.log
           grep -q 'CGWA_COMPANION_SELFTEST PASS' .qa/native-linux-chrome.log
           grep -q 'CGWA_SELFTEST PASS' .qa/native-linux-chrome.log
+          grep -q 'CGWA_LAST_TAB_SELFTEST PASS' .qa/native-linux-chrome.log
           grep -q 'CGWA_SHUTDOWN FINALIZE' .qa/native-linux-chrome.log
           grep -q 'CGWA_SHUTDOWN WINDOW_DESTROYED' .qa/native-linux-chrome.log
-          ! grep -Eq 'FATAL|GPU process isn.t usable|segfault|stack smashing|trap|CGWA_COMPANION_SELFTEST FAIL|CGWA_SELFTEST FAIL' .qa/native-linux-chrome.log
+          ! grep -Eq 'FATAL|GPU process isn.t usable|segfault|stack smashing|trap|CGWA_COMPANION_SELFTEST FAIL|CGWA_SELFTEST FAIL|CGWA_LAST_TAB_SELFTEST FAIL' .qa/native-linux-chrome.log
           sha256sum build/bin/chatgpt-cef-v2 | tee build/BINARY_SHA256-linux.txt
 
       - uses: actions/upload-artifact@v4

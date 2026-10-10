@@ -428,6 +428,34 @@ void AppController::BackgroundSelfTestVerify() {
                << " final_tabs=" << tabs_.size()
                << " browser=" << self_test_browser_id_
                << " still_exists=" << (browser ? 1 : 0);
+  // A normal two-tab close is insufficient to detect the last-tab window
+  // shutdown regression. The CI profile starts with exactly one tab.
+  if (!pass || self_test_base_tabs_ != 1 || closing_ || !window_) {
+    LOG(WARNING) << "CGWA_LAST_TAB_SELFTEST FAIL preconditions";
+    return;
+  }
+  self_test_last_closed_tab_id_ = active_tab_id_;
+  CloseTab(self_test_last_closed_tab_id_);
+  self_test_last_replacement_tab_id_ = active_tab_id_;
+  CefPostDelayedTask(
+      TID_UI,
+      base::BindOnce(&AppController::BackgroundLastTabSelfTestVerify,
+                     base::Unretained(this)),
+      850);
+}
+
+void AppController::BackgroundLastTabSelfTestVerify() {
+  CEF_REQUIRE_UI_THREAD();
+  const bool pass = !closing_ && window_ && !window_->IsClosed() &&
+                    tabs_.size() == 1 &&
+                    self_test_last_closed_tab_id_ != self_test_last_replacement_tab_id_ &&
+                    active_tab_id_ == self_test_last_replacement_tab_id_ &&
+                    !FindTabById(self_test_last_closed_tab_id_) &&
+                    FindTabById(self_test_last_replacement_tab_id_);
+  LOG(WARNING) << "CGWA_LAST_TAB_SELFTEST " << (pass ? "PASS" : "FAIL")
+               << " remaining=" << tabs_.size()
+               << " closing=" << closing_
+               << " replaced_id=" << self_test_last_replacement_tab_id_;
 }
 
 void AppController::OnWindowBoundsChanged(const CefRect& new_bounds) {
@@ -882,10 +910,20 @@ void AppController::CloseTab(int tab_id) {
   CEF_REQUIRE_UI_THREAD();
   auto it = std::find_if(tabs_.begin(), tabs_.end(),
                          [tab_id](const Tab& t) { return t.id == tab_id; });
-  if (it == tabs_.end() || it->closing) return;
+  if (it == tabs_.end() || it->closing || closing_) return;
   if (tabs_.size() == 1) {
-    RequestCloseWindow();
-    return;
+    // Preserve the parent CEF window: replace the last tab before removing it.
+    // The dedicated window-close button still uses RequestCloseWindow().
+    NewTab();
+    if (tabs_.size() != 2) {
+      LOG(ERROR) << "CGWA_TAB_LAST_REPLACEMENT_FAILED tab=" << tab_id;
+      return; // Fail closed: do not destroy the only working tab.
+    }
+    // NewTab() can reallocate the tabs vector. Never reuse the old iterator.
+    it = std::find_if(tabs_.begin(), tabs_.end(),
+                      [tab_id](const Tab& t) { return t.id == tab_id; });
+    if (it == tabs_.end() || it->closing) return;
+    LOG(WARNING) << "CGWA_TAB_LAST_REPLACED tab=" << tab_id;
   }
 
   const size_t index = static_cast<size_t>(std::distance(tabs_.begin(), it));
