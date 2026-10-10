@@ -102,6 +102,7 @@ class AppController {
   void RunBackgroundSelfTest();
   void BackgroundSelfTestClose();
   void BackgroundSelfTestVerify();
+  void BackgroundLastTabSelfTestVerify();
   void BeginShutdown();
   void FinalizeShutdown();
   std::string ShortTitle(const std::string& title) const;
@@ -142,4 +143,6 @@ class AppController {
   int self_test_tab_id_ = 0;
   int self_test_browser_id_ = -1;
   size_t self_test_base_tabs_ = 0;
+  int self_test_last_closed_tab_id_ = 0;
+  int self_test_last_replacement_tab_id_ = 0;
 };

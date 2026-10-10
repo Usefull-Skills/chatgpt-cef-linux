@@ -42,3 +42,19 @@ test('UI-only patch does not disable sandbox or touch ChatGPT authentication',()
  assert.match(controller,/SaveSessionState\(\)/);
  assert.match(header,/visible_tab_capacity_/);
 });
+
+test('closing only tab replaces it before destroy and keeps top-level window alive',()=>{
+ const close=controller.split('void AppController::CloseTab(int tab_id) {')[1]?.split('void AppController::CloseActiveTab()')[0];
+ assert.ok(close);
+ assert.doesNotMatch(close,/RequestCloseWindow\(\)/);
+ assert.match(close,/if \(tabs_\.size\(\) == 1\) \{[\s\S]*?NewTab\(\);[\s\S]*?tabs_\.size\(\) != 2/);
+ assert.match(close,/it = std::find_if\(tabs_\.begin\(\), tabs_\.end\(\)/);
+ assert.match(close,/CGWA_TAB_LAST_REPLACEMENT_FAILED/);
+ assert.match(controller,/CGWA_LAST_TAB_SELFTEST.*PASS/);
+ assert.match(header,/BackgroundLastTabSelfTestVerify/);
+});
+test('dedicated close-window button remains functional',()=>{
+ assert.match(controller,/if \(id == kCloseWindowButton\) \{ RequestCloseWindow\(\); return; \}/);
+ assert.match(controller,/bool AppController::CanWindowClose\(\)/);
+ assert.match(controller,/void AppController::BeginShutdown\(\)/);
+});
