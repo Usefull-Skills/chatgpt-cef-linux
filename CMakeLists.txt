@@ -15,6 +15,13 @@ if(CGWA_COMPANION_TESTS_ONLY)
     target_link_libraries(companion-contract-test PRIVATE Advapi32)
   endif()
   add_test(NAME companion-contract COMMAND companion-contract-test --fixture "${CMAKE_CURRENT_SOURCE_DIR}/src/companion-emitted-fixture.json")
+  # CEF-free native palette tests run on Windows and Linux in hosted CI.
+  add_executable(theme-policy-test src/theme_policy.cc src/theme_policy_test.cc)
+  target_compile_features(theme-policy-test PRIVATE cxx_std_17)
+  if(WIN32)
+    target_link_libraries(theme-policy-test PRIVATE Advapi32)
+  endif()
+  add_test(NAME theme-policy COMMAND theme-policy-test)
   return()
 endif()
 
@@ -37,6 +44,8 @@ set(APP_SRCS
   src/app.h
   src/controller.cc
   src/controller.h
+  src/theme_policy.cc
+  src/theme_policy.h
   src/client.cc
   src/client.h
   src/commander_companion.cc

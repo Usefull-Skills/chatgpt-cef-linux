@@ -16,6 +16,7 @@
 #endif
 
 #include <algorithm>
+#include "theme_policy.h"
 #include <cerrno>
 #include <cctype>
 #include <cstdio>
@@ -45,6 +46,7 @@ constexpr int kMaximizeButton = 22;
 constexpr int kMinimizeButton = 23;
 constexpr int kCloseWindowButton = 24;
 constexpr int kCompanionButton = 25;
+constexpr int kThemeButton = 26;
 constexpr int kCompanionRefreshButton = 30;
 constexpr int kCompanionRowBase = 300;
 constexpr int kCompanionRowCount = 18;
@@ -53,7 +55,7 @@ constexpr int kTabButtonBase = 1000;
 constexpr int kTabCloseBase = 2000;
 
 constexpr int kHeaderHeight = 38;
-constexpr int kBrandWidth = 96;
+constexpr int kBrandWidth = 104;
 
 constexpr int kAccelNewTab = 100;
 constexpr int kAccelCloseTab = 101;
@@ -70,22 +72,34 @@ constexpr int kVKeyW = 0x57;
 constexpr int kVKeyC = 0x43;
 constexpr int kVKeyF11 = 0x7A;
 
-// R07 modern visual system: light neutral surfaces + a single blue accent.
-constexpr cef_color_t kHeaderBg = CefColorSetARGB(255, 248, 250, 252);      // #F8FAFC
-constexpr cef_color_t kTabBg = CefColorSetARGB(255, 248, 250, 252);         // ghost
-constexpr cef_color_t kTabHoverBg = CefColorSetARGB(255, 238, 242, 247);    // #EEF2F7
-constexpr cef_color_t kTabActiveBg = CefColorSetARGB(255, 255, 255, 255);   // #FFFFFF
-constexpr cef_color_t kButtonBg = CefColorSetARGB(255, 248, 250, 252);      // ghost
-constexpr cef_color_t kButtonHoverBg = CefColorSetARGB(255, 238, 242, 247); // #EEF2F7
-constexpr cef_color_t kSoftAccentBg = CefColorSetARGB(255, 239, 246, 255);  // #EFF6FF
-constexpr cef_color_t kPrimaryBg = CefColorSetARGB(255, 37, 99, 235);       // #2563EB
-constexpr cef_color_t kPrimaryHoverBg = CefColorSetARGB(255, 29, 78, 216); // #1D4ED8
-constexpr cef_color_t kText = CefColorSetARGB(255, 15, 23, 42);             // #0F172A
-constexpr cef_color_t kMutedText = CefColorSetARGB(255, 100, 116, 139);     // #64748B
-constexpr cef_color_t kActiveText = CefColorSetARGB(255, 29, 78, 216);      // #1D4ED8
-constexpr cef_color_t kDangerBg = CefColorSetARGB(255, 248, 250, 252);      // ghost normal
-constexpr cef_color_t kDangerHoverBg = CefColorSetARGB(255, 254, 226, 226); // #FEE2E2
-constexpr cef_color_t kDangerText = CefColorSetARGB(255, 220, 38, 38);      // #DC2626
+// Runtime semantic palette. The native window follows the effective OS theme
+// and always repaints both tab controls and the owner-private companion.
+cef_color_t kHeaderBg, kTabBg, kTabHoverBg, kTabActiveBg;
+cef_color_t kButtonBg, kButtonHoverBg, kSoftAccentBg;
+cef_color_t kPrimaryBg, kPrimaryHoverBg, kText, kMutedText, kActiveText;
+cef_color_t kDangerBg, kDangerHoverBg, kDangerText;
+void SetThemePalette(bool dark) {
+  auto C = [](int r,int g,int b){return CefColorSetARGB(255,r,g,b);};
+  if(dark){
+    kHeaderBg=C(17,24,39); kTabBg=C(17,24,39);
+    kTabHoverBg=C(35,48,66); kTabActiveBg=C(38,52,74);
+    kButtonBg=C(25,35,52); kButtonHoverBg=C(42,56,77);
+    kSoftAccentBg=C(28,52,82); kPrimaryBg=C(96,165,250);
+    kPrimaryHoverBg=C(147,197,253); kText=C(241,245,249);
+    kMutedText=C(181,195,213); kActiveText=C(147,197,253);
+    kDangerBg=C(35,38,51); kDangerHoverBg=C(102,32,44);
+    kDangerText=C(254,202,202);
+  }else{
+    kHeaderBg=C(248,250,252); kTabBg=C(248,250,252);
+    kTabHoverBg=C(238,242,247); kTabActiveBg=C(255,255,255);
+    kButtonBg=C(248,250,252); kButtonHoverBg=C(238,242,247);
+    kSoftAccentBg=C(239,246,255); kPrimaryBg=C(37,99,235);
+    kPrimaryHoverBg=C(29,78,216); kText=C(15,23,42);
+    kMutedText=C(100,116,139); kActiveText=C(29,78,216);
+    kDangerBg=C(248,250,252); kDangerHoverBg=C(254,226,226);
+    kDangerText=C(220,38,38);
+  }
+}
 constexpr char kUIFont[] = "Vazirmatn, Noto Sans Arabic, DejaVu Sans, 12px";
 constexpr char kUIBoldFont[] = "Vazirmatn, Noto Sans Arabic, DejaVu Sans, Bold 12px";
 
@@ -223,6 +237,7 @@ class AppController::ButtonDelegateImpl : public CefButtonDelegate {
     const int id = view->GetID();
     if (id == kBrandButton) return CefSize(kBrandWidth, 30);
     if (id == kCompanionButton) return CefSize(104, 30);
+    if (id == kThemeButton) return CefSize(124, 32);
     if (id == kCompanionRefreshButton) return CefSize(kCompanionWidth - 24, 34);
     if (id >= kCompanionRowBase && id < kCompanionRowBase + kCompanionRowCount)
       return CefSize(kCompanionWidth - 24, 34);
@@ -255,6 +270,9 @@ class AppController::BrowserViewDelegateImpl : public CefBrowserViewDelegate {
 class AppController::WindowDelegateImpl : public CefWindowDelegate {
  public:
   explicit WindowDelegateImpl(AppController* owner) : owner_(owner) {}
+  void OnThemeChanged(CefRefPtr<CefView> view) override {
+    if (owner_) owner_->RefreshTheme();
+  }
   void OnWindowCreated(CefRefPtr<CefWindow> window) override {
     if (owner_) owner_->OnWindowCreated(window);
   }
@@ -336,7 +354,16 @@ void AppController::OnWindowCreated(CefRefPtr<CefWindow> window) {
   window_created_ = true;
   window_->SetTitle("Remote Commander Browser");
   SetX11WindowClass(window_);
+  auto command_line_theme = CefCommandLine::GetGlobalCommandLine();
+  if (command_line_theme && command_line_theme->HasSwitch("theme")) {
+    const auto arg = command_line_theme->GetSwitchValue("theme").ToString();
+    if (arg == "light") theme_mode_ = 1;
+    else if (arg == "dark") theme_mode_ = 2;
+  }
+  theme_dark_ = theme::ResolveDark(theme_mode_,theme::ReadSystemDark());
+  SetThemePalette(theme_dark_);
   BuildWindowUI();
+  ThemeTick();
   window_->CenterWindow(CefSize(1180, 620));
   window_->Show();
   auto command_line = CefCommandLine::GetGlobalCommandLine();
@@ -476,7 +503,7 @@ void AppController::BuildWindowUI() {
 
   content_ = CefPanel::CreatePanel(nullptr);
   content_->SetToFillLayout();
-  content_->SetBackgroundColor(CefColorSetARGB(255, 0, 0, 0));
+  content_->SetBackgroundColor(kTabActiveBg);
 
   window_->AddChildView(header_);
   window_->AddChildView(content_);
@@ -508,7 +535,7 @@ void AppController::BuildHeaderControls() {
     return button;
   };
 
-  auto brand = make_button(kBrandButton, "Remote Commander Browser", kHeaderBg);
+  auto brand = make_button(kBrandButton, "Commander", kHeaderBg);
   brand->SetFontList(kUIBoldFont);
   brand->SetEnabledTextColors(kText);
   brand->SetAccessibleName("Remote Commander Browser application");
@@ -525,11 +552,17 @@ void AppController::BuildHeaderControls() {
   header_buttons_.push_back(add);
   header_->AddChildView(add);
 
-  auto companion = make_button(kCompanionButton, "Commander", kButtonBg);
+  auto companion = make_button(kCompanionButton, "Monitor", kButtonBg);
   companion->SetTooltipText("پنل مشاهده Commander (Ctrl+Shift+C)");
   companion->SetAccessibleName("Toggle read-only Commander companion");
   header_buttons_.push_back(companion);
   header_->AddChildView(companion);
+
+  auto theme_button = make_button(kThemeButton, "Theme: System", kButtonBg);
+  theme_button->SetTooltipText("Cycle System / Light / Dark. System follows OS changes.");
+  theme_button->SetAccessibleName("Switch Browser native color theme");
+  header_buttons_.push_back(theme_button);
+  header_->AddChildView(theme_button);
 
   auto full = make_button(kFullscreenButton, "⛶", kButtonBg);
   full->SetTooltipText("Fullscreen (F11)");
@@ -633,6 +666,7 @@ void AppController::BuildCompanionPanel() {
     companion_rows_.push_back(row);
   }
   auto refresh = CefLabelButton::CreateLabelButton(button_delegate_, "تازه‌سازی مانیتور محلی");
+  companion_refresh_button_ = refresh;
   refresh->SetID(kCompanionRefreshButton);
   refresh->SetFontList(kUIFont);
   refresh->SetEnabledTextColors(kActiveText);
@@ -1005,7 +1039,10 @@ void AppController::OnButtonStateChanged(CefRefPtr<CefButton> button) {
   cef_color_t bg = hot ? kButtonHoverBg : kButtonBg;
   cef_color_t fg = hot ? kText : kMutedText;
 
-  if (id == kBrandButton) {
+  if (id == kThemeButton) {
+    bg = hot ? kSoftAccentBg : kButtonBg;
+    fg = kActiveText;
+  } else if (id == kBrandButton) {
     bg = kHeaderBg;
     fg = kText;
   } else if (id == kNewTabButton) {
@@ -1037,6 +1074,11 @@ void AppController::OnButtonPressed(CefRefPtr<CefButton> button) {
   if (id == kBrandButton) return;
   if (id == kNewTabButton) { NewTab(); return; }
   if (id == kCompanionButton) { ToggleCompanionPanel(); return; }
+  if (id == kThemeButton) {
+    theme_mode_ = (theme_mode_ + 1) % 3;
+    RefreshTheme(true);
+    return;
+  }
   if (id == kCompanionRefreshButton) { RefreshCompanion(); return; }
   if (id == kFullscreenButton) { ToggleFullscreen(); return; }
   if (id == kMaximizeButton) { ToggleMaximize(); return; }
@@ -1044,6 +1086,57 @@ void AppController::OnButtonPressed(CefRefPtr<CefButton> button) {
   if (id == kCloseWindowButton) { RequestCloseWindow(); return; }
   if (id >= kTabCloseBase) { CloseTab(id - kTabCloseBase); return; }
   if (id >= kTabButtonBase) { ActivateTab(id - kTabButtonBase); return; }
+}
+
+void AppController::RefreshTheme(bool force) {
+  CEF_REQUIRE_UI_THREAD();
+  const bool next = theme::ResolveDark(theme_mode_,theme::ReadSystemDark());
+  if (!force && next == theme_dark_) return;
+  theme_dark_ = next;
+  SetThemePalette(theme_dark_);
+  if (header_) header_->SetBackgroundColor(kHeaderBg);
+  if (tab_strip_) tab_strip_->SetBackgroundColor(kHeaderBg);
+  if (content_) content_->SetBackgroundColor(kTabActiveBg);
+  if (companion_panel_) companion_panel_->SetBackgroundColor(kHeaderBg);
+  for (auto& row : companion_rows_) {
+    if (row) { row->SetBackgroundColor(kHeaderBg); row->SetEnabledTextColors(kText); }
+  }
+  if (companion_refresh_button_) {
+    companion_refresh_button_->SetBackgroundColor(kSoftAccentBg);
+    companion_refresh_button_->SetEnabledTextColors(kActiveText);
+  }
+  for (auto& b : header_buttons_) {
+    if (!b) continue;
+    if (b->GetID() == kThemeButton)
+      b->SetText(theme_mode_ == 0 ? "Theme: System" :
+                 theme_mode_ == 1 ? "Theme: Light" : "Theme: Dark");
+    OnButtonStateChanged(b);
+  }
+  for (auto& tab : tabs_) {
+    if(tab.ui_panel) tab.ui_panel->SetBackgroundColor(kHeaderBg);
+    UpdateTabButton(tab);
+  }
+  // Cosmetic state only: no navigation, reload, account or profile mutation.
+  for (auto& tab : tabs_) {
+    auto browser=tab.view ? tab.view->GetBrowser() : nullptr;
+    auto frame=browser ? browser->GetMainFrame() : nullptr;
+    ApplyWebTheme(frame);
+  }
+  if (header_) header_->Layout();
+}
+void AppController::ApplyWebTheme(CefRefPtr<CefFrame> frame) {
+  if (!frame) return;
+  frame->ExecuteJavaScript(
+      theme_dark_ ?
+      "document.documentElement.dataset.cgwaNativeTheme='dark';" :
+      "document.documentElement.dataset.cgwaNativeTheme='light';",
+      frame->GetURL(),0);
+}
+void AppController::ThemeTick() {
+  CEF_REQUIRE_UI_THREAD();
+  if (closing_ || !window_ || window_->IsClosed()) return;
+  RefreshTheme();
+  CefPostDelayedTask(TID_UI,base::BindOnce(&AppController::ThemeTick,base::Unretained(this)),4000);
 }
 
 void AppController::RebuildTabStrip() {

@@ -40,6 +40,8 @@ class AppController {
   void CycleTab(int delta);
 
   void OnWindowCreated(CefRefPtr<CefWindow> window);
+  void RefreshTheme(bool force=false);
+  void ApplyWebTheme(CefRefPtr<CefFrame> frame);
   void OnWindowBoundsChanged(const CefRect& new_bounds);
   void OnWindowFullscreenTransition(bool is_completed);
   void OnWindowDestroyed();
@@ -83,6 +85,7 @@ class AppController {
   class BrowserViewDelegateImpl;
   class FixedPanelDelegate;
 
+  void ThemeTick();
   void BuildWindowUI();
   void BuildHeaderControls();
   void UpdateDraggableRegions();
@@ -113,6 +116,7 @@ class AppController {
   CefRefPtr<CefPanel> tab_strip_;
   CefRefPtr<CefPanel> content_;
   CefRefPtr<CefPanel> companion_panel_;
+  CefRefPtr<CefLabelButton> companion_refresh_button_;
   CefRefPtr<CefOverlayController> companion_overlay_;
   std::vector<CefRefPtr<CefLabelButton>> companion_rows_;
   std::vector<CefRefPtr<CefLabelButton>> header_buttons_;
@@ -133,6 +137,8 @@ class AppController {
   int next_tab_id_ = 1;
   int active_tab_id_ = 0;
   bool fullscreen_ = false;
+  int theme_mode_ = 0;  // 0 System, 1 Light, 2 Dark (session-scoped)
+  bool theme_dark_ = false;
   bool companion_visible_ = false;
   bool companion_tick_scheduled_ = false;
   bool closing_ = false;
