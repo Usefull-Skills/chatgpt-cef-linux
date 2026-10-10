@@ -54,6 +54,16 @@ struct Monitor {
 
 struct DisplayRow { std::string text, detail; };
 
+struct GuiStopOutcome {
+  bool ok = false;
+  std::string error = "GUI_STOP_NOT_REQUESTED";
+};
+
+// Native UI only. Monotonic emergency STOP; no start/resume/shell or webpage IPC.
+// Requires a fresh, exact live Core monitor and a private owner-only directory.
+GuiStopOutcome RequestNativeGuiStop(const Monitor& monitor, uint64_t now_ms,
+                                    const std::string& private_root);
+
 // Pure deterministic parser/validation. Duplicate keys (including escaped
 // aliases), unknown keys, invalid UTF-8, excessive depth/nodes and size fail shut.
 Observation ParseObservation(const std::string& json);

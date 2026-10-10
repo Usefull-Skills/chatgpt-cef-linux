@@ -389,6 +389,102 @@ SnapshotRead ReadLatestSnapshot(const std::string& root, size_t cap) {
   return result;
 }
 
+bool CreatePrivateGuiStop(const std::string& root, const std::string& message, std::string& error) {
+  if (message.empty() || message.size() > 256 || message.find('\0') != std::string::npos) {
+    error = "GUI_STOP_MESSAGE_INVALID"; return false;
+  }
+  std::wstring canonical;
+  Identity root_before{};
+  Handle directory = OpenRoot(root, canonical, root_before, error);
+  if (!directory.valid()) return false;
+  const std::wstring target = canonical + L"\\GUI_STOP";
+
+  // CREATE_NEW must be private from its first filesystem-visible instant.
+  // Inherited file ACLs are not guaranteed to remain owner-only on every
+  // supported Windows installation, even when the root directory passed
+  // our strict owner/DACL guard. Construct an explicit non-inheriting DACL.
+  std::vector<BYTE> owner_storage;
+  PSID owner_sid = nullptr;
+  if (!CurrentUserSid(owner_storage, owner_sid)) {
+    error = "GUI_STOP_OWNER_SID_UNAVAILABLE"; return false;
+  }
+  std::array<BYTE, SECURITY_MAX_SID_SIZE> system_storage{};
+  std::array<BYTE, SECURITY_MAX_SID_SIZE> admins_storage{};
+  DWORD system_size = static_cast<DWORD>(system_storage.size());
+  DWORD admins_size = static_cast<DWORD>(admins_storage.size());
+  PSID system_sid = system_storage.data(), admins_sid = admins_storage.data();
+  if (!CreateWellKnownSid(WinLocalSystemSid, nullptr, system_sid, &system_size) ||
+      !CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, admins_sid, &admins_size)) {
+    error = "GUI_STOP_TRUSTED_SID_UNAVAILABLE"; return false;
+  }
+  const std::array<PSID, 3> permitted = {owner_sid, system_sid, admins_sid};
+  std::array<EXPLICIT_ACCESSW, 3> entries{};
+  for (size_t index = 0; index < entries.size(); ++index) {
+    auto& ace = entries[index];
+    ace.grfAccessPermissions = FILE_ALL_ACCESS;
+    ace.grfAccessMode = SET_ACCESS;
+    ace.grfInheritance = NO_INHERITANCE;
+    ace.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+    ace.Trustee.TrusteeType = index == 0 ? TRUSTEE_IS_USER : TRUSTEE_IS_GROUP;
+    ace.Trustee.ptstrName = reinterpret_cast<LPWSTR>(permitted[index]);
+  }
+  PACL allocated_acl = nullptr;
+  if (SetEntriesInAclW(static_cast<ULONG>(entries.size()), entries.data(),
+                      nullptr, &allocated_acl) != ERROR_SUCCESS || !allocated_acl) {
+    error = "GUI_STOP_PRIVATE_DACL_BUILD_FAILED"; return false;
+  }
+  struct ScopedAcl {
+    explicit ScopedAcl(PACL resource) : value(resource) {}
+    ~ScopedAcl() { LocalFree(value); }
+    PACL value;
+  } private_acl(allocated_acl);
+  SECURITY_DESCRIPTOR descriptor{};
+  if (!InitializeSecurityDescriptor(&descriptor, SECURITY_DESCRIPTOR_REVISION) ||
+      !SetSecurityDescriptorOwner(&descriptor, owner_sid, FALSE) ||
+      !SetSecurityDescriptorDacl(&descriptor, TRUE, private_acl.value, FALSE)) {
+    error = "GUI_STOP_PRIVATE_DESCRIPTOR_INVALID"; return false;
+  }
+  SECURITY_ATTRIBUTES attributes{sizeof(SECURITY_ATTRIBUTES), &descriptor, FALSE};
+  Handle file(CreateFileW(target.c_str(),
+      GENERIC_WRITE | FILE_READ_ATTRIBUTES | READ_CONTROL,
+      FILE_SHARE_READ | FILE_SHARE_DELETE, &attributes, CREATE_NEW,
+      FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+  if (!file.valid()) {
+    const DWORD code = GetLastError();
+    error = code == ERROR_FILE_EXISTS || code == ERROR_ALREADY_EXISTS
+      ? "GUI_STOP_ALREADY_PRESENT" : "GUI_STOP_CREATE_FAILED";
+    return false;
+  }
+  Identity info{};
+  std::wstring actual;
+  if (!IdentityOf(file.get(), info)) { error = "GUI_STOP_VERIFY_IDENTITY"; return false; }
+  if (info.attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) {
+    error = "GUI_STOP_VERIFY_FILE_TYPE"; return false;
+  }
+  if (info.links != 1) { error = "GUI_STOP_VERIFY_LINKS"; return false; }
+  if (!FinalPath(file.get(), actual)) { error = "GUI_STOP_VERIFY_FINAL_PATH"; return false; }
+  if (!SamePath(actual, target)) { error = "GUI_STOP_VERIFY_PATH_MISMATCH"; return false; }
+  if (!Ntfs(file.get())) { error = "GUI_STOP_VERIFY_NTFS"; return false; }
+  if (!PrivateAcl(file.get(), false)) { error = "GUI_STOP_VERIFY_ACL"; return false; }
+  DWORD written = 0;
+  if (!WriteFile(file.get(), message.data(), static_cast<DWORD>(message.size()),
+                 &written, nullptr) || written != message.size() ||
+      !FlushFileBuffers(file.get())) {
+    error = "GUI_STOP_WRITE_UNCERTAIN"; return false;
+  }
+  std::wstring canonical_after;
+  Identity root_after{};
+  std::string root_error;
+  Handle verified_root = OpenRoot(root, canonical_after, root_after, root_error);
+  if (!verified_root.valid() || !SamePath(canonical_after, canonical) ||
+      root_after.volume != root_before.volume ||
+      root_after.index_high != root_before.index_high ||
+      root_after.index_low != root_before.index_low) {
+    error = "GUI_STOP_ROOT_CHANGED_AFTER_CREATE"; return false;
+  }
+  error.clear(); return true;
+}
+
 }  // namespace companion::winprivate
 
 #else
@@ -399,6 +495,9 @@ std::string ReadPrivateFile(const std::string&, const char*, size_t, std::string
 }
 SnapshotRead ReadLatestSnapshot(const std::string&, size_t) {
   SnapshotRead out; out.error = "WINDOWS_FILE_GUARD_UNAVAILABLE"; return out;
+}
+bool CreatePrivateGuiStop(const std::string&, const std::string&, std::string& error) {
+  error = "WINDOWS_FILE_GUARD_UNAVAILABLE"; return false;
 }
 }  // namespace companion::winprivate
 
