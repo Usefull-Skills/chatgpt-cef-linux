@@ -53,45 +53,7 @@ jobs:
             find . -maxdepth 1 -type f ! -name 'SHA256SUMS.txt' -printf '%f\n' | LC_ALL=C sort |
             while IFS= read -r f; do sha256sum "$f"; done > SHA256SUMS.txt
             test "$(wc -l < SHA256SUMS.txt)" -eq 6
-            ! grep -Eq '[[:space:]]SHA256SUMS\.txt
-            sha256sum -c SHA256SUMS.txt
-          )
-          echo R67_ASSET_MANIFEST_PASS
-      - name: Publish opt-in UNSIGNED prerelease
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG=preview-v0.8.2-unsigned-r67
-          SOURCE=8d214c52852fa474509886c2374f85b5e616f86b
-          cat > NOTES_R67.md <<'NOTES'
-          # Remote Commander Browser v0.8.2 — UNSIGNED voluntary preview
-
-          UNSIGNED: Windows Setup and portable Windows/Linux packages have no trusted public code-signature. Your operating system may warn. Do not disable system protection automatically. Installation is optional.
-
-          This is a preview, NOT the stable four-host release. Core v0.10.20, users' browser profiles and stable auto-updates are not modified by this publication.
-
-          Exact source commit: 8d214c52852fa474509886c2374f85b5e616f86b, PR #81.
-          CI SUCCESS: Build 38046034967, Release 38046035028, Windows Native Preview 38046034978, R57 isolated Rollback 38046035120.
-          CI is not physical owner-desktop visual acceptance. Full production rollback and four-host deployment remain unproven.
-
-          Assets: Windows Setup EXE, Windows portable ZIP, Linux TAR.GZ, checksums, SHA256SUMS.txt. Compare SHA256 before running.
-          Preserve installed v0.8.1 and private browser session. Linux CEF sandbox needs locally authorized root:root mode 4755; do NOT use --no-sandbox.
-          Stable Auto Update: OFF. No login/logout, browser cookie handling, reboot or forced deployment.
-          NOTES
-          mapfile -t assets < <(find dist/unsigned-r67 -maxdepth 1 -type f -printf '%p\n' | LC_ALL=C sort)
-          test "${#assets[@]}" -eq 7
-          gh release create "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --target "$SOURCE" \
-            --title "Remote Commander Browser v0.8.2 UNSIGNED opt-in preview" \
-            --notes-file NOTES_R67.md --draft --prerelease --latest=false
-          test "$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
-          test "$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json isPrerelease --jq .isPrerelease)" = true
-          test "$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/$TAG" --jq '.assets | length')" -eq 7
-          gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
-          test "$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = false
-          echo "R67_PUBLIC_PREVIEW https://github.com/${GITHUB_REPOSITORY}/releases/tag/$TAG"
- SHA256SUMS.txt
+            ! grep -Fq '  SHA256SUMS.txt' SHA256SUMS.txt
             sha256sum -c SHA256SUMS.txt
           )
           echo R67_ASSET_MANIFEST_PASS
